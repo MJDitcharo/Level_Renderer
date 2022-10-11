@@ -1,0 +1,3 @@
+D:/ClassWork/Dev4/Level_Renderer/build/CMakeFiles/Assignment_2_D3D12.dir
+D:/ClassWork/Dev4/Level_Renderer/build/CMakeFiles/ALL_BUILD.dir
+D:/ClassWork/Dev4/Level_Renderer/build/CMakeFiles/ZERO_CHECK.dir
