@@ -1,10 +1,3 @@
-// an ultra simple hlsl vertex shader
-// TODO: Part 2i
-// TODO: Part 2b
-// TODO: Part 4f
-// TODO: Part 4a
-// TODO: Part 1f
-// TODO: Part 4b
 #pragma pack_matrix(row_major)
 
 
@@ -60,10 +53,8 @@ struct OUTPUT_TO_RASTERIZER
 ConstantBuffer<SCENE_DATA> cameraAndLights   : register(b0, Space0);
 ConstantBuffer<MESH_DATA>  meshInfo			 : register(b1, Space0);
 
-// TODO: Part 4f
-// TODO: Part 4a
-// TODO: Part 1f
-// TODO: Part 4b
+
+
 VS_OUT main(VS_IN input)
 {
 

@@ -260,8 +260,6 @@ class Renderer
 	Microsoft::WRL::ComPtr<ID3D12Resource>		vertexBuffer;
 	D3D12_INDEX_BUFFER_VIEW						indexView;
 	Microsoft::WRL::ComPtr<ID3D12Resource>		indexBuffer;
-	
-
 	Microsoft::WRL::ComPtr<ID3D12Resource>		constantBuffer;
 
 
@@ -269,9 +267,15 @@ class Renderer
 	Microsoft::WRL::ComPtr<ID3D12PipelineState>	pipeline;
 	ID3D12DescriptorHeap* descHeap[1];
 
+	// World, View, and Projection
+	GW::MATH::GMATRIXF world;
+	GW::MATH::GMATRIXF view;
+	GW::MATH::GMATRIXF projection;
 
+	MESH_DATA meshTemp;
+	SCENE_DATA sceneTemp;
 
-
+	unsigned meshCount;
 
 public:
 	Renderer(GW::SYSTEM::GWindow _win, GW::GRAPHICS::GDirectX12Surface _d3d)
@@ -280,31 +284,99 @@ public:
 		d3d = _d3d;
 		ID3D12Device* creator;
 		d3d.GetDevice((void**)&creator);
-		// TODO: part 2a
-		// TODO: part 2b
-		// TODO: Part 4f
-		// TODO: Part 1c
-		// Create Vertex Buffer
-		float verts[] = {
-			   0,   0.5f,
-			 0.5f, -0.5f,
-			-0.5f, -0.5f
-		};
-		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(sizeof(verts)),
-			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertexBuffer));
-		// Transfer triangle data to the vertex buffer.
-		UINT8* transferMemoryLocation;
-		vertexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
-			reinterpret_cast<void**>(&transferMemoryLocation));
-		memcpy(transferMemoryLocation, verts, sizeof(verts));
-		vertexBuffer->Unmap(0, nullptr);
-		// Create a vertex View to send to a Draw() call.
-		vertexView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
-		vertexView.StrideInBytes = sizeof(float) * 2; 
-		vertexView.SizeInBytes = sizeof(verts); 
-		
+		mat.Create();
+		gController.Create();
+		gInput.Create(_win);
+
+		float fov = angleToRadian(65);
+		float nPlane = 0.1f;
+		float fPlane = 100.0f;
+		float aspectRatio;
+		d3d.GetAspectRatio(aspectRatio);
+		mat.IdentityF(projection);
+		mat.ProjectionDirectXLHF(fov, aspectRatio, nPlane, fPlane, projection);
+
+
+		// Vertex Buffer
+		{
+
+			creator->CreateCommittedResource( // using UPLOAD heap for simplicity
+				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
+				D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(sizeof(verts)),
+				D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertexBuffer));
+			// Transfer triangle data to the vertex buffer.
+			UINT8* transferMemoryLocation;
+			vertexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+				reinterpret_cast<void**>(&transferMemoryLocation));
+			memcpy(transferMemoryLocation, verts, sizeof(verts));
+			vertexBuffer->Unmap(0, nullptr);
+
+			// Create a vertex View to send to a Draw() call.
+			vertexView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
+			vertexView.StrideInBytes = sizeof(VERTEX);
+			vertexView.SizeInBytes = sizeof(verts);
+		}
+
+		// Index Buffer
+		{
+			creator->CreateCommittedResource( // using UPLOAD heap for simplicity
+				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
+				D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(sizeof(FSLogo_indices)),
+				D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&indexBuffer));
+
+
+			UINT8* transferMemoryLocation;
+			indexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+				reinterpret_cast<void**>(&transferMemoryLocation));
+			memcpy(transferMemoryLocation, FSLogo_indices, sizeof(FSLogo_indices));
+			indexBuffer->Unmap(0, nullptr);
+
+			indexView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
+			indexView.SizeInBytes = sizeof(FSLogo_indices);
+			indexView.Format = DXGI_FORMAT_R32_UINT;
+		}
+
+
+
+		IDXGISwapChain4* swapChain;
+		d3d.GetSwapchain4((void**)&swapChain);
+		DXGI_SWAP_CHAIN_DESC swapChainDesc;
+		swapChain->GetDesc(&swapChainDesc);
+		unsigned sceneOffset = sizeof(sceneTemp);
+		unsigned meshOffset = sizeof(meshTemp) + sizeof(sceneTemp);
+		unsigned constBuffMemory = (sizeof(SCENE_DATA) + (meshCount * sizeof(MESH_DATA))) * swapChainDesc.BufferCount;
+		// Constant Buffer
+		{
+			
+
+
+			HRESULT hr = creator->CreateCommittedResource( // using UPLOAD heap for simplicity
+				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
+				D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(constBuffMemory),
+				D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&constantBuffer));
+
+			if (FAILED(hr))
+				throw(std::runtime_error::runtime_error("Error creating a const buffer."));
+
+
+		}
+
+		D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc{};
+		descHeapDesc.NumDescriptors = swapChainDesc.BufferCount;
+		descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		creator->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&descHeap[0]));
+
+		// TODO: Part 2f
+		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferDesc;
+		bufferDesc.BufferLocation = constantBuffer.Get()->GetGPUVirtualAddress();
+		bufferDesc.SizeInBytes = constBuffMemory;
+
+		D3D12_CPU_DESCRIPTOR_HANDLE descHandle = descHeap[0]->GetCPUDescriptorHandleForHeapStart();
+		creator->CreateConstantBufferView(&bufferDesc, descHandle);
+
+
+
 
 		// Create Vertex Shader
 		UINT compilerFlags = D3DCOMPILE_ENABLE_STRICTNESS;
@@ -374,7 +446,7 @@ public:
 	}
 	void Render()
 	{
-		
+
 		// grab the context & render target
 		ID3D12GraphicsCommandList* cmd;
 		D3D12_CPU_DESCRIPTOR_HANDLE rtv;
@@ -393,7 +465,21 @@ public:
 		// now we can draw
 		cmd->IASetVertexBuffers(0, 1, &vertexView);
 		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		
+
+
+		/*
+			for(int i = 0; i < meshCount; i++
+			{
+				cbuffer.meshId = i;
+				// Update constant buffer
+				// Draw Indexed Instance with offset of the mesh
+
+			}
+		*/
+
+
+
+
 
 		cmd->DrawInstanced(3, 1, 0, 0); // TODO: Part 1c
 
