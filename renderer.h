@@ -3,199 +3,9 @@
 #include <d3dcompiler.h>
 #pragma comment(lib, "d3dcompiler.lib")
 #include "d3dx12.h" // official helper file provided by microsoft
-#include "Model.h"
+#include "Level.h"
 
 
-
-
-struct SCENE_DATA
-{
-	GW::MATH::GVECTORF sunDirection, sunColor, sunAmbience, cameraPos; // lighting info
-	GW::MATH::GMATRIXF viewMatrix, projectionMatrix; // viewing info
-	GW::MATH::GVECTORF padding[4]; // D3D12 requires 256 byte aligned constant buffers
-};
-
-struct MESH_DATA
-{
-	// per sub-mesh transform and material data
-	GW::MATH::GMATRIXF world; // final world space transform
-	H2B::ATTRIBUTES material; // color/texture of surface
-	unsigned padding[28];
-};
-
-
-
-#pragma region HelperShit
-
-void levelParse(const char* fileName, std::vector<GW::MATH::GMATRIXF>* output, std::vector<std::string>* h2bOutput)
-{
-	std::fstream f;
-	std::vector<float> values;
-	//std::vector<GW::MATH::GMATRIXF> output;
-	f.open(fileName, std::ios::in);
-
-	while (!f.eof())
-	{
-		std::string str, h2b, strTemp;
-		std::getline(f, str, '\n');
-		if (std::strcmp(str.c_str(), "MESH") == 0/* || std::strcmp(str.c_str(), "LIGHT") == 0 || std::strcmp(str.c_str(), "CAMERA") == 0*/)
-		{
-			std::cout << str << std::endl;
-
-			// Get and Print .h2b
-			std::getline(f, h2b, '\n');
-			std::cout << h2b << std::endl;
-			h2bOutput->push_back(h2b);
-
-			// First Matrix Row
-			{
-				std::getline(f, strTemp, '(');
-				std::cout << strTemp;
-				std::getline(f, strTemp, ')');
-				std::cout << '(' << strTemp << ')';
-				std::string numString = "";
-				strTemp.append(")");
-				for (std::string::iterator it = strTemp.begin(); it != strTemp.end(); ++it)
-				{
-					if (*it != ',' && *it != ')')
-						numString += *it;
-					else
-					{
-						float numOutput = std::stof(numString);
-						values.push_back(numOutput);
-						numString = "";
-					}
-				}
-			}
-
-			// Second Matrix Row
-			{
-				std::getline(f, strTemp, '(');
-				std::cout << strTemp;
-				std::getline(f, strTemp, ')');
-				std::cout << '(' << strTemp << ')';
-				std::string numString = "";
-				strTemp.append(")");
-				for (std::string::iterator it = strTemp.begin(); it != strTemp.end(); ++it)
-				{
-					if (*it != ',' && *it != ')')
-						numString += *it;
-					else
-					{
-						float numOutput = std::stof(numString);
-						values.push_back(numOutput);
-						numString = "";
-					}
-				}
-			}
-
-			// Third Matrix Row
-			{
-				std::getline(f, strTemp, '(');
-				std::cout << strTemp;
-				std::getline(f, strTemp, ')');
-				std::cout << '(' << strTemp << ')';
-				std::string numString = "";
-				strTemp.append(")");
-				for (std::string::iterator it = strTemp.begin(); it != strTemp.end(); ++it)
-				{
-					if (*it != ',' && *it != ')')
-						numString += *it;
-					else
-					{
-						float numOutput = std::stof(numString);
-						values.push_back(numOutput);
-						numString = "";
-					}
-				}
-			}
-
-			// Last Matrix Row
-			{
-				std::getline(f, strTemp, '(');
-				std::cout << strTemp;
-				std::getline(f, strTemp, ')');
-				std::cout << '(' << strTemp << ')';
-				std::string numString = "";
-				strTemp.append(")");
-				for (std::string::iterator it = strTemp.begin(); it != strTemp.end(); ++it)
-				{
-					if (*it != ',' && *it != ')')
-						numString += *it;
-					else
-					{
-						float numOutput = std::stof(numString);
-						values.push_back(numOutput);
-						numString = "";
-					}
-				}
-			}
-			std::cout << '\n';
-		}
-	}
-	f.close();
-
-
-	GW::MATH::GMATRIXF matTemp;
-	for (size_t j = 0; j < values.size(); j += 16)
-	{
-		for (size_t i = 0; i < 16; i += 4)
-		{
-
-			if (i < 4)
-			{
-				matTemp.row1.x = values[i];
-				matTemp.row1.y = values[i + 1];
-				matTemp.row1.z = values[i + 2];
-				matTemp.row1.w = values[i + 3];
-			}
-			else if (i < 8)
-			{
-				matTemp.row2.x = values[i];
-				matTemp.row2.y = values[i + 1];
-				matTemp.row2.z = values[i + 2];
-				matTemp.row2.w = values[i + 3];
-			}
-			else if (i < 12)
-			{
-				matTemp.row3.x = values[i];
-				matTemp.row3.y = values[i + 1];
-				matTemp.row3.z = values[i + 2];
-				matTemp.row3.w = values[i + 3];
-			}
-			else if (i < 16)
-			{
-				matTemp.row4.x = values[i];
-				matTemp.row4.y = values[i + 1];
-				matTemp.row4.z = values[i + 2];
-				matTemp.row4.w = values[i + 3];
-				output->push_back(matTemp);
-			}
-		}
-	}
-
-}
-
-float angleToRadian(float input)
-{
-	return (input * PI) / 180;
-}
-
-std::string ShaderAsString(const char* shaderFilePath) {
-	std::string output;
-	unsigned int stringLength = 0;
-	GW::SYSTEM::GFile file; file.Create();
-	file.GetFileSize(shaderFilePath, stringLength);
-	if (stringLength && +file.OpenBinaryRead(shaderFilePath)) {
-		output.resize(stringLength);
-		file.Read(&output[0], stringLength);
-	}
-	else
-		std::cout << "ERROR: Shader Source File \"" << shaderFilePath << "\" Not Found!" << std::endl;
-	return output;
-}
-
-#pragma endregion
 
 
 class Renderer
@@ -236,6 +46,10 @@ class Renderer
 public:
 	Renderer(GW::SYSTEM::GWindow _win, GW::GRAPHICS::GDirectX12Surface _d3d)
 	{
+
+		
+
+
 		win = _win;
 		d3d = _d3d;
 		ID3D12Device* creator;
@@ -243,6 +57,12 @@ public:
 		mat.Create();
 		gController.Create();
 		gInput.Create(_win);
+
+
+		mat.IdentityF(world);
+		mat.IdentityF(view);
+
+
 
 		float fov = angleToRadian(65);
 		float nPlane = 0.1f;

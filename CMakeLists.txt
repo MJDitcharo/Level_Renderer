@@ -12,11 +12,11 @@ ADD_DEFINITIONS(-D_UNICODE)
 # CMake FXC shader compilation, add any shaders you want compiled here
 set(VERTEX_SHADERS 
 	# add vertex shader (.hlsl) files here
-	#Vertex_Shader.hlsl
+	Vertex_Shader.hlsl
 )
 set(PIXEL_SHADERS 
 	# add pixel shader (.hlsl) files here
-	#Pixel_Shader.hlsl
+	Pixel_Shader.hlsl
 	
 )
 
@@ -25,6 +25,12 @@ add_executable (Assignment_2_D3D12
 	# Header & CPP files go here
 	main.cpp
 	renderer.h
+	Model.h
+	Level.h
+	h2bParser.h
+	Define.h
+	d3dx12.h
+	
 	${VERTEX_SHADERS}
 	${PIXEL_SHADERS}
 )
@@ -33,13 +39,13 @@ add_executable (Assignment_2_D3D12
 # The produced .h files can be included and contain the compiled shader byte code
 set_source_files_properties( ${VERTEX_SHADERS} PROPERTIES 
 	VS_SHADER_TYPE Vertex VS_SHADER_MODEL 5.1 VS_SHADER_ENTRYPOINT main 
-	VS_SHADER_OUTPUT_HEADER_FILE "%(RelativeDir)%(Filename).h"
+	#VS_SHADER_OUTPUT_HEADER_FILE "%(RelativeDir)%(Filename).h"
 	VS_SHADER_VARIABLE_NAME "%(Filename)"
 	VS_SHADER_ENABLE_DEBUG $<$<CONFIG:Debug>:true>
 )
 set_source_files_properties( ${PIXEL_SHADERS} PROPERTIES 
 	VS_SHADER_TYPE Pixel VS_SHADER_MODEL 5.1 VS_SHADER_ENTRYPOINT main 
-	VS_SHADER_OUTPUT_HEADER_FILE "%(RelativeDir)%(Filename).h"
+	#VS_SHADER_OUTPUT_HEADER_FILE "%(RelativeDir)%(Filename).h"
 	VS_SHADER_VARIABLE_NAME "%(Filename)"
 	VS_SHADER_ENABLE_DEBUG $<$<CONFIG:Debug>:true>
 )
