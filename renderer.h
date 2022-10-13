@@ -61,9 +61,14 @@ public:
 		gInput.Create(_win);
 
 		//  Initialize Level Data
-		level.levelParse("../GameLevel.txt");
+		level.levelParse("../TestLevel.txt");
 
+		for (auto it = level.uniqueMeshes.begin(); it != level.uniqueMeshes.end(); ++it)
+		{
 
+			CreateVertexBuffer(creator, &it->second);
+			CreateIndexBuffer(creator, &it->second);
+		}
 
 
 		mat.IdentityF(view);
@@ -79,57 +84,46 @@ public:
 
 		//// Vertex Buffer
 		//{
-
 		//	for (auto it = level.uniqueMeshes.begin(); it != level.uniqueMeshes.end(); ++it)
 		//	{
 		//		unsigned vertBufferSize = sizeof(H2B::VERTEX) * it->second.parser.vertexCount;
-
 		//		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 		//			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
 		//			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(vertBufferSize),
 		//			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&it->second.vertexBuffer));
-
 		//		UINT8* transferMemoryLocation;
 		//		vertexBufferTemp->Map(0, &CD3DX12_RANGE(0, 0),
 		//			reinterpret_cast<void**>(&transferMemoryLocation));
 		//		memcpy(transferMemoryLocation, it->second.parser.vertices.data(), vertBufferSize);
 		//		vertexBufferTemp->Unmap(0, nullptr);
-
 		//		// Create a vertex View to send to a Draw() call.
 		//		it->second.vertexView.BufferLocation = it->second.vertexBuffer->GetGPUVirtualAddress();
 		//		it->second.vertexView.StrideInBytes = sizeof(H2B::VERTEX);
 		//		it->second.vertexView.SizeInBytes = vertBufferSize;
-
 		//	}
 		//}
 
-		// Index Buffer
-		{
+		//// Index Buffer
+		//{
+		//	for (auto it = level.uniqueMeshes.begin(); it != level.uniqueMeshes.end(); ++it)
+		//	{
 
+		//		unsigned indexBufferSize =  sizeof(unsigned) * it->second.parser.indexCount;
 
-			for (auto it = level.uniqueMeshes.begin(); it != level.uniqueMeshes.end(); ++it)
-			{
-
-				unsigned indexBufferSize =  sizeof(unsigned) * it->second.parser.indexCount;
-
-				creator->CreateCommittedResource( // using UPLOAD heap for simplicity
-					&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-					D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize),
-					D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&it->second.indexBuffer));
-
-
-				UINT8* transferMemoryLocation;
-				indexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
-					reinterpret_cast<void**>(&transferMemoryLocation));
-				memcpy(transferMemoryLocation, it->second.parser.indices.data(), indexBufferSize);
-				indexBuffer->Unmap(0, nullptr);
-
-				indexView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
-				indexView.SizeInBytes = indexBufferSize;
-				indexView.Format = DXGI_FORMAT_R32_UINT;
-
-			}
-		}
+		//		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
+		//			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
+		//			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize),
+		//			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&it->second.indexBuffer));
+		//		UINT8* transferMemoryLocation;
+		//		indexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+		//			reinterpret_cast<void**>(&transferMemoryLocation));
+		//		memcpy(transferMemoryLocation, it->second.parser.indices.data(), indexBufferSize);
+		//		indexBuffer->Unmap(0, nullptr);
+		//		indexView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
+		//		indexView.SizeInBytes = indexBufferSize;
+		//		indexView.Format = DXGI_FORMAT_R32_UINT;
+		//	}
+		//}
 
 
 
@@ -207,7 +201,8 @@ public:
 			{ "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 
 		};
-		// TODO: Part 2g
+
+
 		// create root signature
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
 		rootSignatureDesc.Init(0, nullptr, 0, nullptr,
@@ -217,6 +212,7 @@ public:
 			D3D_ROOT_SIGNATURE_VERSION_1, &signature, &errors);
 		creator->CreateRootSignature(0, signature->GetBufferPointer(),
 			signature->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
+
 		// create pipeline state
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psDesc;
 		ZeroMemory(&psDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
@@ -259,7 +255,6 @@ public:
 		cmd->IASetVertexBuffers(0, 1, &vertexView);
 		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-
 		/*
 			for(int i = 0; i < meshCount; i++
 			{
@@ -270,15 +265,7 @@ public:
 			}
 		*/
 
-
-
-
-
 		cmd->DrawInstanced(3, 1, 0, 0); // TODO: Part 1c
-
-
-
-
 
 		// release temp handles
 		cmd->Release();
@@ -287,4 +274,54 @@ public:
 	{
 		// ComPtr will auto release so nothing to do here 
 	}
+
+	/*void InitBuffers(ID3D12Device* _creator)
+	{
+		CreateVertexBuffer(_creator);
+		CreateIndexBuffer(_creator);
+	}*/
+
+	void CreateVertexBuffer(ID3D12Device* _creator, Model* _model)
+	{
+		unsigned vertBufferSize = sizeof(H2B::VERTEX) * _model->parser.vertexCount;
+
+		_creator->CreateCommittedResource( // using UPLOAD heap for simplicity
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
+			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(vertBufferSize),
+			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&_model->vertexBuffer));
+
+		UINT8* transferMemoryLocation;
+		_model->vertexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+			reinterpret_cast<void**>(&transferMemoryLocation));
+		memcpy(transferMemoryLocation, _model->parser.vertices.data(), vertBufferSize);
+		_model->vertexBuffer->Unmap(0, nullptr);
+
+
+		// Create a vertex View to send to a Draw() call.
+		_model->vertexView.BufferLocation = _model->vertexBuffer->GetGPUVirtualAddress();
+		_model->vertexView.StrideInBytes = sizeof(H2B::VERTEX);
+		_model->vertexView.SizeInBytes = vertBufferSize;
+	}
+
+	void CreateIndexBuffer(ID3D12Device* _creator, Model* _model)
+	{
+		unsigned indexBufferSize = sizeof(unsigned) * _model->parser.indexCount;
+
+		_creator->CreateCommittedResource( // using UPLOAD heap for simplicity
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
+			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize),
+			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&_model->indexBuffer));
+
+
+		UINT8* transferMemoryLocation;
+		_model->indexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+			reinterpret_cast<void**>(&transferMemoryLocation));
+		memcpy(transferMemoryLocation, _model->parser.indices.data(), indexBufferSize);
+		_model->indexBuffer->Unmap(0, nullptr);
+
+		_model->indexView.BufferLocation = _model->indexBuffer->GetGPUVirtualAddress();
+		_model->indexView.SizeInBytes = indexBufferSize;
+		_model->indexView.Format = DXGI_FORMAT_R32_UINT;
+	}
+
 };

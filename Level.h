@@ -118,15 +118,14 @@ void Level::levelParse(const char* fileName)
 			}
 
 
-			size_t lastindex = h2b.find_last_of("_");
+			size_t lastindex = h2b.find_last_of(".");
 			std::string rawName = h2b.substr(0, lastindex);
 
 			auto iter = uniqueMeshes.find(rawName);
 
 			if (uniqueMeshes.end() != iter)
 			{
-				GW::MATH::GMATRIXF matTemp = createMatrix(values);
-				uniqueMeshes[rawName].worldMatrices.push_back(matTemp);
+				uniqueMeshes[rawName].worldMatrices.push_back(createMatrix(values));
 			}
 			else
 			{
