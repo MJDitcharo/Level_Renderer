@@ -16,13 +16,13 @@ struct SCENE_DATA
 };
 
 
-//struct MESH_DATA
-//{
-//	// per sub-mesh transform and material data
-//	GW::MATH::GMATRIXF world; // final world space transform
-//	H2B::ATTRIBUTES material; // color/texture of surface
-//	unsigned padding[28];
-//};
+struct MESH_DATA
+{
+	// per sub-mesh transform and material data
+	GW::MATH::GMATRIXF world; // final world space transform
+	H2B::ATTRIBUTES material; // color/texture of surface
+	unsigned padding[28];
+};
 
 
 float angleToRadian(float input)

@@ -18,10 +18,10 @@ public:
 	Microsoft::WRL::ComPtr<ID3D12Resource>		constantBuffer;
 
 
-
-
 	Model();
 	~Model();
+
+
 
 private:
 
@@ -29,6 +29,8 @@ private:
 
 
 };
+
+
 
 Model::Model()
 {

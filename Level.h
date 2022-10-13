@@ -7,7 +7,6 @@ public:
 	std::map<std::string, Model> uniqueMeshes;
 
 	void levelParse(const char* fileName);
-	GW::MATH::GMATRIXF createMatrix(std::vector<float> values);
 
 
 	Level();
@@ -15,6 +14,7 @@ public:
 
 private:
 
+	GW::MATH::GMATRIXF createMatrix(std::vector<float> values);
 };
 
 Level::Level()
@@ -38,18 +38,13 @@ void Level::levelParse(const char* fileName)
 		std::getline(f, str, '\n');
 		if (std::strcmp(str.c_str(), "MESH") == 0/* || std::strcmp(str.c_str(), "LIGHT") == 0 || std::strcmp(str.c_str(), "CAMERA") == 0*/)
 		{
-			std::cout << str << std::endl;
-
 			// Get and Print .h2b
 			std::getline(f, h2b, '\n');
-			std::cout << h2b << std::endl;
 
 			// First Matrix Row
 			{
 				std::getline(f, strTemp, '(');
-				std::cout << strTemp;
 				std::getline(f, strTemp, ')');
-				std::cout << '(' << strTemp << ')';
 				std::string numString = "";
 				strTemp.append(")");
 				for (std::string::iterator it = strTemp.begin(); it != strTemp.end(); ++it)
@@ -68,9 +63,7 @@ void Level::levelParse(const char* fileName)
 			// Second Matrix Row
 			{
 				std::getline(f, strTemp, '(');
-				std::cout << strTemp;
 				std::getline(f, strTemp, ')');
-				std::cout << '(' << strTemp << ')';
 				std::string numString = "";
 				strTemp.append(")");
 				for (std::string::iterator it = strTemp.begin(); it != strTemp.end(); ++it)
@@ -89,9 +82,7 @@ void Level::levelParse(const char* fileName)
 			// Third Matrix Row
 			{
 				std::getline(f, strTemp, '(');
-				std::cout << strTemp;
 				std::getline(f, strTemp, ')');
-				std::cout << '(' << strTemp << ')';
 				std::string numString = "";
 				strTemp.append(")");
 				for (std::string::iterator it = strTemp.begin(); it != strTemp.end(); ++it)
@@ -110,9 +101,7 @@ void Level::levelParse(const char* fileName)
 			// Last Matrix Row
 			{
 				std::getline(f, strTemp, '(');
-				std::cout << strTemp;
 				std::getline(f, strTemp, ')');
-				std::cout << '(' << strTemp << ')';
 				std::string numString = "";
 				strTemp.append(")");
 				for (std::string::iterator it = strTemp.begin(); it != strTemp.end(); ++it)
@@ -127,29 +116,29 @@ void Level::levelParse(const char* fileName)
 					}
 				}
 			}
-			std::cout << '\n';
 
 
 			size_t lastindex = h2b.find_last_of(".");
 			std::string rawName = h2b.substr(0, lastindex);
 
 			auto iter = uniqueMeshes.find(rawName);
-			
+
 			if (uniqueMeshes.end() != iter)
 			{
 				GW::MATH::GMATRIXF matTemp = createMatrix(values);
 				uniqueMeshes[rawName].worldMatrices.push_back(matTemp);
 			}
-			else 
+			else
 			{
 				std::string filePath = "../assets/obj/" + rawName + ".h2b";
 
 				Model modelTemp;
-				modelTemp.parser.Parse(filePath.c_str());
-				modelTemp.worldMatrices.push_back(createMatrix(values));
-				uniqueMeshes[rawName] = modelTemp;
+				if (modelTemp.parser.Parse(filePath.c_str()))
+				{
+					modelTemp.worldMatrices.push_back(createMatrix(values));
+					uniqueMeshes[rawName] = modelTemp;
+				}
 			}
-
 
 			values.clear();
 		}

@@ -23,7 +23,7 @@ class Renderer
 
 	// what we need at a minimum to draw a triangle
 	D3D12_VERTEX_BUFFER_VIEW					vertexView;
-	Microsoft::WRL::ComPtr<ID3D12Resource>		vertexBuffer;
+	Microsoft::WRL::ComPtr<ID3D12Resource>		vertexBufferTemp;
 	D3D12_INDEX_BUFFER_VIEW						indexView;
 	Microsoft::WRL::ComPtr<ID3D12Resource>		indexBuffer;
 	Microsoft::WRL::ComPtr<ID3D12Resource>		constantBuffer;
@@ -38,16 +38,19 @@ class Renderer
 	GW::MATH::GMATRIXF view;
 	GW::MATH::GMATRIXF projection;
 
+
+	Level level;
+
+
 	//MESH_DATA meshTemp;
 	SCENE_DATA sceneTemp;
+	MESH_DATA meshTemp;
 
 	unsigned meshCount;
 
 public:
 	Renderer(GW::SYSTEM::GWindow _win, GW::GRAPHICS::GDirectX12Surface _d3d)
 	{
-
-
 
 		win = _win;
 		d3d = _d3d;
@@ -57,12 +60,13 @@ public:
 		gController.Create();
 		gInput.Create(_win);
 
+		//  Initialize Level Data
+		level.levelParse("../GameLevel.txt");
 
-		mat.IdentityF(world);
+
+
+
 		mat.IdentityF(view);
-
-
-
 		float fov = angleToRadian(65);
 		float nPlane = 0.1f;
 		float fPlane = 100.0f;
@@ -71,21 +75,36 @@ public:
 		mat.IdentityF(projection);
 		mat.ProjectionDirectXLHF(fov, aspectRatio, nPlane, fPlane, projection);
 
-		
+
 
 		// Vertex Buffer
 		{
 
-			creator->CreateCommittedResource( // using UPLOAD heap for simplicity
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-				D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(sizeof(verts)),
-				D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertexBuffer));
+
+			for (const auto& p : level.uniqueMeshes)
+			{
+
+
+				creator->CreateCommittedResource( // using UPLOAD heap for simplicity
+					&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
+					D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(sizeof(H2B::VERTEX) * p.second.parser.vertexCount),
+					D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertexBufferTemp));
+
+
+
+			}
+
+
+
+
+
 			// Transfer triangle data to the vertex buffer.
 			UINT8* transferMemoryLocation;
 			vertexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 				reinterpret_cast<void**>(&transferMemoryLocation));
 			memcpy(transferMemoryLocation, verts, sizeof(verts));
 			vertexBuffer->Unmap(0, nullptr);
+
 
 			// Create a vertex View to send to a Draw() call.
 			vertexView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
@@ -123,8 +142,6 @@ public:
 		unsigned constBuffMemory = (sizeof(SCENE_DATA) + (meshCount * sizeof(MESH_DATA))) * swapChainDesc.BufferCount;
 		// Constant Buffer
 		{
-			
-
 
 			HRESULT hr = creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
@@ -133,7 +150,6 @@ public:
 
 			if (FAILED(hr))
 				throw(std::runtime_error::runtime_error("Error creating a const buffer."));
-
 
 		}
 
