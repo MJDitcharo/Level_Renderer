@@ -77,58 +77,58 @@ public:
 
 
 
-		// Vertex Buffer
-		{
+		//// Vertex Buffer
+		//{
 
+		//	for (auto it = level.uniqueMeshes.begin(); it != level.uniqueMeshes.end(); ++it)
+		//	{
+		//		unsigned vertBufferSize = sizeof(H2B::VERTEX) * it->second.parser.vertexCount;
 
-			for (const auto& p : level.uniqueMeshes)
-			{
+		//		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
+		//			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
+		//			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(vertBufferSize),
+		//			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&it->second.vertexBuffer));
 
+		//		UINT8* transferMemoryLocation;
+		//		vertexBufferTemp->Map(0, &CD3DX12_RANGE(0, 0),
+		//			reinterpret_cast<void**>(&transferMemoryLocation));
+		//		memcpy(transferMemoryLocation, it->second.parser.vertices.data(), vertBufferSize);
+		//		vertexBufferTemp->Unmap(0, nullptr);
 
-				creator->CreateCommittedResource( // using UPLOAD heap for simplicity
-					&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-					D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(sizeof(H2B::VERTEX) * p.second.parser.vertexCount),
-					D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertexBufferTemp));
+		//		// Create a vertex View to send to a Draw() call.
+		//		it->second.vertexView.BufferLocation = it->second.vertexBuffer->GetGPUVirtualAddress();
+		//		it->second.vertexView.StrideInBytes = sizeof(H2B::VERTEX);
+		//		it->second.vertexView.SizeInBytes = vertBufferSize;
 
-
-
-			}
-
-
-
-
-
-			// Transfer triangle data to the vertex buffer.
-			UINT8* transferMemoryLocation;
-			vertexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
-				reinterpret_cast<void**>(&transferMemoryLocation));
-			memcpy(transferMemoryLocation, verts, sizeof(verts));
-			vertexBuffer->Unmap(0, nullptr);
-
-
-			// Create a vertex View to send to a Draw() call.
-			vertexView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
-			vertexView.StrideInBytes = sizeof(VERTEX);
-			vertexView.SizeInBytes = sizeof(verts);
-		}
+		//	}
+		//}
 
 		// Index Buffer
 		{
-			creator->CreateCommittedResource( // using UPLOAD heap for simplicity
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-				D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(sizeof(FSLogo_indices)),
-				D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&indexBuffer));
 
 
-			UINT8* transferMemoryLocation;
-			indexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
-				reinterpret_cast<void**>(&transferMemoryLocation));
-			memcpy(transferMemoryLocation, FSLogo_indices, sizeof(FSLogo_indices));
-			indexBuffer->Unmap(0, nullptr);
+			for (auto it = level.uniqueMeshes.begin(); it != level.uniqueMeshes.end(); ++it)
+			{
 
-			indexView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
-			indexView.SizeInBytes = sizeof(FSLogo_indices);
-			indexView.Format = DXGI_FORMAT_R32_UINT;
+				unsigned indexBufferSize =  sizeof(unsigned) * it->second.parser.indexCount;
+
+				creator->CreateCommittedResource( // using UPLOAD heap for simplicity
+					&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
+					D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize),
+					D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&it->second.indexBuffer));
+
+
+				UINT8* transferMemoryLocation;
+				indexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+					reinterpret_cast<void**>(&transferMemoryLocation));
+				memcpy(transferMemoryLocation, it->second.parser.indices.data(), indexBufferSize);
+				indexBuffer->Unmap(0, nullptr);
+
+				indexView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
+				indexView.SizeInBytes = indexBufferSize;
+				indexView.Format = DXGI_FORMAT_R32_UINT;
+
+			}
 		}
 
 
@@ -158,6 +158,7 @@ public:
 		descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		creator->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&descHeap[0]));
+
 
 		// TODO: Part 2f
 		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferDesc;

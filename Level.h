@@ -118,7 +118,7 @@ void Level::levelParse(const char* fileName)
 			}
 
 
-			size_t lastindex = h2b.find_last_of(".");
+			size_t lastindex = h2b.find_last_of("_");
 			std::string rawName = h2b.substr(0, lastindex);
 
 			auto iter = uniqueMeshes.find(rawName);
@@ -130,7 +130,7 @@ void Level::levelParse(const char* fileName)
 			}
 			else
 			{
-				std::string filePath = "../assets/obj/" + rawName + ".h2b";
+				std::string filePath = "../assets/OBJ/" + rawName + ".h2b";
 
 				Model modelTemp;
 				if (modelTemp.parser.Parse(filePath.c_str()))
@@ -184,4 +184,7 @@ GW::MATH::GMATRIXF Level::createMatrix(std::vector<float> values)
 			}
 		}
 	}
+
+	return matTemp;
+
 }
