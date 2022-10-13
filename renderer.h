@@ -14,8 +14,12 @@ class Renderer
 	GW::SYSTEM::GWindow win;
 	GW::GRAPHICS::GDirectX12Surface d3d;
 	GW::MATH::GMatrix mat;
-	GW::MATH::GVector vecProxy;
 
+	// Const buffer shit
+	IDXGISwapChain4* swapChain;
+	DXGI_SWAP_CHAIN_DESC swapChainDesc;
+
+	GW::MATH::GVector vecProxy;
 	// Camera Proxy
 	GW::INPUT::GInput gInput;
 	GW::INPUT::GController gController;
@@ -27,17 +31,15 @@ class Renderer
 	D3D12_INDEX_BUFFER_VIEW						indexView;
 	Microsoft::WRL::ComPtr<ID3D12Resource>		indexBuffer;
 	Microsoft::WRL::ComPtr<ID3D12Resource>		constantBuffer;
-
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> descHeap;
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature>	rootSignature;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState>	pipeline;
-	ID3D12DescriptorHeap* descHeap[1];
 
 	// World, View, and Projection
 	GW::MATH::GMATRIXF world;
 	GW::MATH::GMATRIXF view;
 	GW::MATH::GMATRIXF projection;
-
 
 	Level level;
 
@@ -52,25 +54,31 @@ public:
 	Renderer(GW::SYSTEM::GWindow _win, GW::GRAPHICS::GDirectX12Surface _d3d)
 	{
 
+		/////////////////////////////////////////////////////////////////////////////////
+		// Initialize Proxies
 		win = _win;
 		d3d = _d3d;
 		ID3D12Device* creator;
 		d3d.GetDevice((void**)&creator);
+		d3d.GetSwapchain4((void**)&swapChain);
+		swapChain->GetDesc(&swapChainDesc);
 		mat.Create();
 		gController.Create();
 		gInput.Create(_win);
-
-		//  Initialize Level Data
+		/////////////////////////////////////////////////////////////////////////////////
+		
+		/////////////////////////////////////////////////////////////////////////////////
+		//  Initialize Level and Create Vertex/Index Buffers
 		level.levelParse("../TestLevel.txt");
-
 		for (auto it = level.uniqueMeshes.begin(); it != level.uniqueMeshes.end(); ++it)
 		{
 
 			CreateVertexBuffer(creator, &it->second);
 			CreateIndexBuffer(creator, &it->second);
 		}
-
-
+		/////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////
+		// Init View and Projection Matrix
 		mat.IdentityF(view);
 		float fov = angleToRadian(65);
 		float nPlane = 0.1f;
@@ -79,58 +87,11 @@ public:
 		d3d.GetAspectRatio(aspectRatio);
 		mat.IdentityF(projection);
 		mat.ProjectionDirectXLHF(fov, aspectRatio, nPlane, fPlane, projection);
+		/////////////////////////////////////////////////////////////////////////////////
 
 
 
-		//// Vertex Buffer
-		//{
-		//	for (auto it = level.uniqueMeshes.begin(); it != level.uniqueMeshes.end(); ++it)
-		//	{
-		//		unsigned vertBufferSize = sizeof(H2B::VERTEX) * it->second.parser.vertexCount;
-		//		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
-		//			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-		//			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(vertBufferSize),
-		//			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&it->second.vertexBuffer));
-		//		UINT8* transferMemoryLocation;
-		//		vertexBufferTemp->Map(0, &CD3DX12_RANGE(0, 0),
-		//			reinterpret_cast<void**>(&transferMemoryLocation));
-		//		memcpy(transferMemoryLocation, it->second.parser.vertices.data(), vertBufferSize);
-		//		vertexBufferTemp->Unmap(0, nullptr);
-		//		// Create a vertex View to send to a Draw() call.
-		//		it->second.vertexView.BufferLocation = it->second.vertexBuffer->GetGPUVirtualAddress();
-		//		it->second.vertexView.StrideInBytes = sizeof(H2B::VERTEX);
-		//		it->second.vertexView.SizeInBytes = vertBufferSize;
-		//	}
-		//}
 
-		//// Index Buffer
-		//{
-		//	for (auto it = level.uniqueMeshes.begin(); it != level.uniqueMeshes.end(); ++it)
-		//	{
-
-		//		unsigned indexBufferSize =  sizeof(unsigned) * it->second.parser.indexCount;
-
-		//		creator->CreateCommittedResource( // using UPLOAD heap for simplicity
-		//			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-		//			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize),
-		//			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&it->second.indexBuffer));
-		//		UINT8* transferMemoryLocation;
-		//		indexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
-		//			reinterpret_cast<void**>(&transferMemoryLocation));
-		//		memcpy(transferMemoryLocation, it->second.parser.indices.data(), indexBufferSize);
-		//		indexBuffer->Unmap(0, nullptr);
-		//		indexView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
-		//		indexView.SizeInBytes = indexBufferSize;
-		//		indexView.Format = DXGI_FORMAT_R32_UINT;
-		//	}
-		//}
-
-
-
-		IDXGISwapChain4* swapChain;
-		d3d.GetSwapchain4((void**)&swapChain);
-		DXGI_SWAP_CHAIN_DESC swapChainDesc;
-		swapChain->GetDesc(&swapChainDesc);
 		unsigned sceneOffset = sizeof(sceneTemp);
 		unsigned meshOffset = sizeof(meshTemp) + sizeof(sceneTemp);
 		unsigned constBuffMemory = (sizeof(SCENE_DATA) + (meshCount * sizeof(MESH_DATA))) * swapChainDesc.BufferCount;
@@ -151,7 +112,7 @@ public:
 		descHeapDesc.NumDescriptors = swapChainDesc.BufferCount;
 		descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-		creator->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&descHeap[0]));
+		creator->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&descHeap));
 
 
 		// TODO: Part 2f
@@ -159,7 +120,7 @@ public:
 		bufferDesc.BufferLocation = constantBuffer.Get()->GetGPUVirtualAddress();
 		bufferDesc.SizeInBytes = constBuffMemory;
 
-		D3D12_CPU_DESCRIPTOR_HANDLE descHandle = descHeap[0]->GetCPUDescriptorHandleForHeapStart();
+		D3D12_CPU_DESCRIPTOR_HANDLE descHandle = descHeap->GetCPUDescriptorHandleForHeapStart();
 		creator->CreateConstantBufferView(&bufferDesc, descHandle);
 
 
@@ -285,10 +246,12 @@ public:
 	{
 		unsigned vertBufferSize = sizeof(H2B::VERTEX) * _model->parser.vertexCount;
 
-		_creator->CreateCommittedResource( // using UPLOAD heap for simplicity
+		HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
 			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(vertBufferSize),
 			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&_model->vertexBuffer));
+		if (FAILED(hr))
+			throw(std::runtime_error::runtime_error("Error creating a vertex buffer."));
 
 		UINT8* transferMemoryLocation;
 		_model->vertexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
@@ -307,11 +270,12 @@ public:
 	{
 		unsigned indexBufferSize = sizeof(unsigned) * _model->parser.indexCount;
 
-		_creator->CreateCommittedResource( // using UPLOAD heap for simplicity
+		HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
 			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize),
 			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&_model->indexBuffer));
-
+		if (FAILED(hr))
+			throw(std::runtime_error::runtime_error("Error creating an index buffer."));
 
 		UINT8* transferMemoryLocation;
 		_model->indexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
@@ -319,9 +283,29 @@ public:
 		memcpy(transferMemoryLocation, _model->parser.indices.data(), indexBufferSize);
 		_model->indexBuffer->Unmap(0, nullptr);
 
+		// Create IndexView 
 		_model->indexView.BufferLocation = _model->indexBuffer->GetGPUVirtualAddress();
 		_model->indexView.SizeInBytes = indexBufferSize;
 		_model->indexView.Format = DXGI_FORMAT_R32_UINT;
 	}
 
+	void CreateConstantBuffer(ID3D12Device* _creator, Model* _model, unsigned constBuffMemory)
+	{
+		HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
+			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(constBuffMemory),
+			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&constantBuffer));
+		if (FAILED(hr))
+			throw(std::runtime_error::runtime_error("Error creating a const buffer."));
+
+
+		UINT8* transferMemoryLocation;
+		constantBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+			reinterpret_cast<void**>(&transferMemoryLocation));
+		/*memcpy(transferMemoryLocation, &sceneData, sizeof(SCENE_DATA));
+		memcpy(transferMemoryLocation + sceneOffset, &logoMesh, sizeof(MESH_DATA));
+		memcpy(transferMemoryLocation + meshOffset, &titleMesh, sizeof(MESH_DATA));*/
+		constantBuffer->Unmap(0, nullptr);
+	}
 };
+
