@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(Assignment_2_D3D12)
+project(Level_Renderer)
 # by default CMake selects "ALL_BUILD" as the startup project
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} 
-	PROPERTY VS_STARTUP_PROJECT Assignment_2_D3D12)
+	PROPERTY VS_STARTUP_PROJECT Level_Renderer)
 
 # currently using unicode in some libraries on win32 but will change soon
 ADD_DEFINITIONS(-DUNICODE)
@@ -21,7 +21,7 @@ set(PIXEL_SHADERS
 )
 
 # Add any new C/C++ source code here
-add_executable (Assignment_2_D3D12 
+add_executable (Level_Renderer 
 	# Header & CPP files go here
 	main.cpp
 	renderer.h

@@ -2,6 +2,8 @@
 #include "h2bParser.h"
 #include "Gateware.h"
 #include <map>
+#include <string>
+
 
 
 constexpr auto PI = 3.14;
@@ -13,13 +15,14 @@ struct SCENE_DATA
 	GW::MATH::GVECTORF padding[4]; // D3D12 requires 256 byte aligned constant buffers
 };
 
-struct MESH_DATA
-{
-	// per sub-mesh transform and material data
-	GW::MATH::GMATRIXF world; // final world space transform
-	H2B::ATTRIBUTES material; // color/texture of surface
-	unsigned padding[28];
-};
+
+//struct MESH_DATA
+//{
+//	// per sub-mesh transform and material data
+//	GW::MATH::GMATRIXF world; // final world space transform
+//	H2B::ATTRIBUTES material; // color/texture of surface
+//	unsigned padding[28];
+//};
 
 
 float angleToRadian(float input)

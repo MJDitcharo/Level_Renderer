@@ -38,7 +38,7 @@ class Renderer
 	GW::MATH::GMATRIXF view;
 	GW::MATH::GMATRIXF projection;
 
-	MESH_DATA meshTemp;
+	//MESH_DATA meshTemp;
 	SCENE_DATA sceneTemp;
 
 	unsigned meshCount;
@@ -47,7 +47,6 @@ public:
 	Renderer(GW::SYSTEM::GWindow _win, GW::GRAPHICS::GDirectX12Surface _d3d)
 	{
 
-		
 
 
 		win = _win;
@@ -72,6 +71,7 @@ public:
 		mat.IdentityF(projection);
 		mat.ProjectionDirectXLHF(fov, aspectRatio, nPlane, fPlane, projection);
 
+		
 
 		// Vertex Buffer
 		{
