@@ -135,6 +135,7 @@ void Level::levelParse(const char* fileName)
 				if (modelTemp.parser.Parse(filePath.c_str()))
 				{
 					modelTemp.worldMatrices.push_back(createMatrix(values));
+
 					uniqueMeshes[rawName] = modelTemp;
 				}
 			}

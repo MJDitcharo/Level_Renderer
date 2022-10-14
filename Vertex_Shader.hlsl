@@ -35,12 +35,14 @@ struct SCENE_DATA
 	float4 padding[4];
 };
 
-struct MESH_DATA
+struct MESH_MATRIX
 {
 	float4x4 world;
-	OBJ_ATTRIBUTES material;
-	unsigned int padding[28];
+};
 
+struct MESH_MATERIAL
+{
+    OBJ_ATTRIBUTES material;
 };
 
 struct OUTPUT_TO_RASTERIZER
@@ -50,9 +52,9 @@ struct OUTPUT_TO_RASTERIZER
     float3 posW : WORLD; // position in world space (for lighting)
 };
 
-ConstantBuffer<SCENE_DATA> cameraAndLights   : register(b0, Space0);
-ConstantBuffer<MESH_DATA>  meshInfo			 : register(b1, Space0);
-
+ConstantBuffer<SCENE_DATA>    cameraAndLights    : register(b0);
+ConstantBuffer<MESH_MATRIX>   meshMatrix		 : register(b1);
+ConstantBuffer<MESH_MATERIAL> meshMaterial       : register(b2);
 
 
 VS_OUT main(VS_IN input)
@@ -62,12 +64,12 @@ VS_OUT main(VS_IN input)
     VS_OUT output = (VS_OUT) 0;
     output.posW = input.pos;
 	
-    output.posH = mul(float4(output.posW, 1), meshInfo.world);
+    output.posH = mul(float4(output.posW, 1), meshMatrix.world);
     output.posH = mul(output.posH, cameraAndLights.viewMatrix);
     output.posH = mul(output.posH, cameraAndLights.projectionMatrix);
 	
-    output.posW = mul(float4(input.pos, 1), meshInfo.world);
-    output.nrmW = mul(input.norm, meshInfo.world);
+    output.posW = mul(float4(input.pos, 1), meshMatrix.world);
+    output.nrmW = mul(input.norm, meshMatrix.world);
 	
 	output.tex = input.tex;
 	

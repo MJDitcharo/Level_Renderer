@@ -31,6 +31,7 @@ class Renderer
 	D3D12_INDEX_BUFFER_VIEW						indexView;
 	Microsoft::WRL::ComPtr<ID3D12Resource>		indexBuffer;
 	Microsoft::WRL::ComPtr<ID3D12Resource>		constantBuffer;
+
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> descHeap;
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature>	rootSignature;
@@ -42,13 +43,6 @@ class Renderer
 	GW::MATH::GMATRIXF projection;
 
 	Level level;
-
-
-	//MESH_DATA meshTemp;
-	SCENE_DATA sceneTemp;
-	MESH_DATA meshTemp;
-
-	unsigned meshCount;
 
 public:
 	Renderer(GW::SYSTEM::GWindow _win, GW::GRAPHICS::GDirectX12Surface _d3d)
@@ -66,62 +60,60 @@ public:
 		gController.Create();
 		gInput.Create(_win);
 		/////////////////////////////////////////////////////////////////////////////////
-		
-		/////////////////////////////////////////////////////////////////////////////////
-		//  Initialize Level and Create Vertex/Index Buffers
-		level.levelParse("../TestLevel.txt");
-		for (auto it = level.uniqueMeshes.begin(); it != level.uniqueMeshes.end(); ++it)
-		{
 
-			CreateVertexBuffer(creator, &it->second);
-			CreateIndexBuffer(creator, &it->second);
-		}
-		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// Init View and Projection Matrix
-		mat.IdentityF(view);
+		//mat.IdentityF(view);
 		float fov = angleToRadian(65);
 		float nPlane = 0.1f;
 		float fPlane = 100.0f;
 		float aspectRatio;
 		d3d.GetAspectRatio(aspectRatio);
 		mat.IdentityF(projection);
+		GW::MATH::GVECTORF eye = { 0.0f, 3.0f, -9.0f, 1.0f };
+		GW::MATH::GVECTORF at =  { 0.0f, 0.0f,  0.0f, 1.0f };
+		GW::MATH::GVECTORF up =  { 0.0f, 1.0f, 0.0f, 1.0f };
+		mat.LookAtLHF(eye, at, up, view);
 		mat.ProjectionDirectXLHF(fov, aspectRatio, nPlane, fPlane, projection);
 		/////////////////////////////////////////////////////////////////////////////////
 
+		/////////////////////////////////////////////////////////////////////////////////
+		//  Initialize Level and Create Vertex/Index Buffers
+		level.levelParse("../TestLevel.txt");
 
-
-
-		unsigned sceneOffset = sizeof(sceneTemp);
-		unsigned meshOffset = sizeof(meshTemp) + sizeof(sceneTemp);
-		unsigned constBuffMemory = (sizeof(SCENE_DATA) + (meshCount * sizeof(MESH_DATA))) * swapChainDesc.BufferCount;
-		// Constant Buffer
-		{
-
-			HRESULT hr = creator->CreateCommittedResource( // using UPLOAD heap for simplicity
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-				D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(constBuffMemory),
-				D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&constantBuffer));
-
-			if (FAILED(hr))
-				throw(std::runtime_error::runtime_error("Error creating a const buffer."));
-
-		}
+		UINT offset = 0;
 
 		D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc{};
-		descHeapDesc.NumDescriptors = swapChainDesc.BufferCount;
+		descHeapDesc.NumDescriptors = 1 + (2 * level.uniqueMeshes.size());
 		descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		creator->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&descHeap));
 
+		SCENE_DATA data = {};
+		data.viewMatrix = view;
+		data.projectionMatrix = projection;
+		CreateConstantBuffer(creator, nullptr, sizeof(data), data);
+		CreateConstantBufferSceneView(creator, offset);
 
-		// TODO: Part 2f
-		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferDesc;
-		bufferDesc.BufferLocation = constantBuffer.Get()->GetGPUVirtualAddress();
-		bufferDesc.SizeInBytes = constBuffMemory;
+		for (auto it = level.uniqueMeshes.begin(); it != level.uniqueMeshes.end(); ++it)
+		{
+			CreateVertexBuffer(creator, &it->second);
+			CreateIndexBuffer(creator, &it->second);
+			CreateConstantBuffer(creator, &it->second);
+			CreateConstantBufferModelView(creator, &it->second, offset);
+		}
+		/////////////////////////////////////////////////////////////////////////////////
 
-		D3D12_CPU_DESCRIPTOR_HANDLE descHandle = descHeap->GetCPUDescriptorHandleForHeapStart();
-		creator->CreateConstantBufferView(&bufferDesc, descHandle);
+		//UINT desc_heap_size = _creator->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+
+
+
+
+		
+
+
+
 
 
 
@@ -164,9 +156,14 @@ public:
 		};
 
 
+		CD3DX12_ROOT_PARAMETER rootParams[3];
+		rootParams[0].InitAsConstantBufferView(0);
+		rootParams[1].InitAsConstantBufferView(1);
+		rootParams[2].InitAsConstantBufferView(2);
+
 		// create root signature
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-		rootSignatureDesc.Init(0, nullptr, 0, nullptr,
+		rootSignatureDesc.Init(ARRAYSIZE(rootParams), rootParams, 0, nullptr,
 			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 		Microsoft::WRL::ComPtr<ID3DBlob> signature;
 		D3D12SerializeRootSignature(&rootSignatureDesc,
@@ -208,25 +205,38 @@ public:
 
 		// setup the pipeline
 		cmd->SetGraphicsRootSignature(rootSignature.Get());
+
+
+
+
 		cmd->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
 		cmd->SetPipelineState(pipeline.Get());
 
 
 		// now we can draw
-		cmd->IASetVertexBuffers(0, 1, &vertexView);
 		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-		/*
-			for(int i = 0; i < meshCount; i++
+		cmd->SetGraphicsRootConstantBufferView(0, constantBuffer->GetGPUVirtualAddress());	// A
+
+		for (const auto& model : level.uniqueMeshes)
+		{
+			cmd->IASetVertexBuffers(0, 1, &model.second.vertexView);
+			cmd->IASetIndexBuffer(&model.second.indexView);
+			
+			for (size_t i = 0; i < model.second.worldMatrices.size(); i++)
 			{
-				cbuffer.meshId = i;
-				// Update constant buffer
-				// Draw Indexed Instance with offset of the mesh
-
+				cmd->SetGraphicsRootConstantBufferView(1, model.second.worldConstBuffer->GetGPUVirtualAddress() + (i * sizeof(GW::MATH::GMATRIXF)));	// B
+				for (const auto& submesh : model.second.parser.meshes)
+				{
+					// C
+					UINT material_index = submesh.materialIndex;
+					cmd->DrawIndexedInstanced(submesh.drawInfo.indexCount, 1, submesh.drawInfo.indexOffset, 0, 0);
+				}
 			}
-		*/
+		}
 
-		cmd->DrawInstanced(3, 1, 0, 0); // TODO: Part 1c
+
+		//cmd->DrawInstanced(3, 1, 0, 0); // TODO: Part 1c
 
 		// release temp handles
 		cmd->Release();
@@ -242,6 +252,11 @@ public:
 		CreateIndexBuffer(_creator);
 	}*/
 
+	inline UINT Renderer::CalculateConstantBufferByteSize(UINT byteSize)
+	{
+		return (byteSize + (D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT - 1)) & ~(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT - 1);
+	};
+
 	void CreateVertexBuffer(ID3D12Device* _creator, Model* _model)
 	{
 		unsigned vertBufferSize = sizeof(H2B::VERTEX) * _model->parser.vertexCount;
@@ -249,9 +264,11 @@ public:
 		HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
 			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(vertBufferSize),
-			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&_model->vertexBuffer));
-		if (FAILED(hr))
+			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(_model->vertexBuffer.GetAddressOf()));
+		if (FAILED(hr)) {
+			hr = _creator->GetDeviceRemovedReason();
 			throw(std::runtime_error::runtime_error("Error creating a vertex buffer."));
+		}
 
 		UINT8* transferMemoryLocation;
 		_model->vertexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
@@ -273,7 +290,7 @@ public:
 		HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
 			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize),
-			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&_model->indexBuffer));
+			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(_model->indexBuffer.GetAddressOf()));
 		if (FAILED(hr))
 			throw(std::runtime_error::runtime_error("Error creating an index buffer."));
 
@@ -289,23 +306,108 @@ public:
 		_model->indexView.Format = DXGI_FORMAT_R32_UINT;
 	}
 
-	void CreateConstantBuffer(ID3D12Device* _creator, Model* _model, unsigned constBuffMemory)
+	void CreateConstantBuffer(ID3D12Device* _creator, Model* _model, unsigned constBuffMemory, SCENE_DATA sceneData)
 	{
+
+
 		HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
-			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(constBuffMemory),
-			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&constantBuffer));
+			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(CalculateConstantBufferByteSize(constBuffMemory)),
+			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(constantBuffer.GetAddressOf()));
 		if (FAILED(hr))
-			throw(std::runtime_error::runtime_error("Error creating a const buffer."));
-
+			throw(std::runtime_error::runtime_error("Error creating a scene const buffer."));
 
 		UINT8* transferMemoryLocation;
 		constantBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 			reinterpret_cast<void**>(&transferMemoryLocation));
-		/*memcpy(transferMemoryLocation, &sceneData, sizeof(SCENE_DATA));
-		memcpy(transferMemoryLocation + sceneOffset, &logoMesh, sizeof(MESH_DATA));
-		memcpy(transferMemoryLocation + meshOffset, &titleMesh, sizeof(MESH_DATA));*/
+		memcpy(transferMemoryLocation, &sceneData, sizeof(SCENE_DATA));
 		constantBuffer->Unmap(0, nullptr);
 	}
+
+	void CreateConstantBuffer(ID3D12Device* _creator, Model* _model)
+	{
+
+		//UINT desc_heap_size = _creator->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+		/////////////////////////////////////////////////////////////////////////////////
+		// World Const Buffer
+		{
+
+			unsigned constantBufferSize = CalculateConstantBufferByteSize(sizeof(GW::MATH::GMATRIXF) * _model->worldMatrices.size());
+			HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
+				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
+				D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(constantBufferSize),
+				D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(_model->worldConstBuffer.GetAddressOf()));
+			if (FAILED(hr))
+				throw(std::runtime_error::runtime_error("Error creating a world const buffer."));
+
+			UINT8* transferMemoryLocation;
+			_model->worldConstBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+				reinterpret_cast<void**>(&transferMemoryLocation));
+			memcpy(transferMemoryLocation, _model->worldMatrices.data(), constantBufferSize);
+			_model->worldConstBuffer->Unmap(0, nullptr);
+		}
+		/////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////
+		// Material Const Buffer
+		{
+			unsigned constantBufferSize = CalculateConstantBufferByteSize(sizeof(H2B::MATERIAL) * _model->parser.materialCount);
+			HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
+				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
+				D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(constantBufferSize),
+				D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(_model->materialConstBuffer.GetAddressOf()));
+			if (FAILED(hr))
+				throw(std::runtime_error::runtime_error("Error creating a material const buffer."));
+
+			UINT8* transferMemoryLocation;
+			_model->materialConstBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+				reinterpret_cast<void**>(&transferMemoryLocation));
+			memcpy(transferMemoryLocation, _model->parser.materials.data(), constantBufferSize);
+			_model->materialConstBuffer->Unmap(0, nullptr);
+		}
+		/////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+	}
+
+	void CreateConstantBufferSceneView(ID3D12Device* _creator, UINT& offset)
+	{
+
+		UINT desc_heap_size = _creator->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferViewWorld;
+		bufferViewWorld.BufferLocation = constantBuffer->GetGPUVirtualAddress();
+		bufferViewWorld.SizeInBytes = CalculateConstantBufferByteSize(sizeof(GW::MATH::GMATRIXF) * 2);
+
+		CD3DX12_CPU_DESCRIPTOR_HANDLE handle(descHeap->GetCPUDescriptorHandleForHeapStart(), offset, desc_heap_size);
+		_creator->CreateConstantBufferView(&bufferViewWorld, handle);
+
+		offset++;
+	}
+	void CreateConstantBufferModelView(ID3D12Device* _creator, Model* _model, UINT& offset)
+	{
+		UINT desc_heap_size = _creator->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferViewWorld;
+		bufferViewWorld.BufferLocation = _model->worldConstBuffer->GetGPUVirtualAddress();
+		bufferViewWorld.SizeInBytes = CalculateConstantBufferByteSize(_model->worldMatrices.size() * sizeof(GW::MATH::GMATRIXF));
+
+		_model->descHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(descHeap->GetCPUDescriptorHandleForHeapStart(), offset, desc_heap_size);
+		_creator->CreateConstantBufferView(&bufferViewWorld, _model->descHandle);
+
+		offset++;
+
+		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferView;
+		bufferView.BufferLocation = _model->materialConstBuffer->GetGPUVirtualAddress();
+		bufferView.SizeInBytes = CalculateConstantBufferByteSize(sizeof(H2B::MATERIAL) * _model->parser.materialCount);
+
+		//_model->descHandle = descHeap->GetCPUDescriptorHandleForHeapStart();
+		_creator->CreateConstantBufferView(&bufferViewWorld, CD3DX12_CPU_DESCRIPTOR_HANDLE(descHeap->GetCPUDescriptorHandleForHeapStart(), offset, desc_heap_size));
+
+		offset++;
+	}
+
 };
 
