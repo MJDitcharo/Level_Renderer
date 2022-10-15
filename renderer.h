@@ -14,13 +14,10 @@ class Renderer
 	GW::SYSTEM::GWindow win;
 	GW::GRAPHICS::GDirectX12Surface d3d;
 	GW::MATH::GMatrix mat;
-
-	// Const buffer shit
-	IDXGISwapChain4* swapChain;
-	DXGI_SWAP_CHAIN_DESC swapChainDesc;
-
 	GW::MATH::GVector vecProxy;
-	// Camera Proxy
+
+
+	// Camera
 	GW::INPUT::GInput gInput;
 	GW::INPUT::GController gController;
 
@@ -30,7 +27,8 @@ class Renderer
 	Microsoft::WRL::ComPtr<ID3D12Resource>		vertexBufferTemp;
 	D3D12_INDEX_BUFFER_VIEW						indexView;
 	Microsoft::WRL::ComPtr<ID3D12Resource>		indexBuffer;
-	Microsoft::WRL::ComPtr<ID3D12Resource>		constantBuffer;
+	Microsoft::WRL::ComPtr<ID3D12Resource>		sceneBuffer;
+
 
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> descHeap;
 
@@ -40,8 +38,10 @@ class Renderer
 	// World, View, and Projection
 	GW::MATH::GMATRIXF world;
 	GW::MATH::GMATRIXF view;
+	GW::MATH::GMATRIXF camera;
 	GW::MATH::GMATRIXF projection;
 
+	SCENE_DATA sceneData;
 	Level level;
 
 public:
@@ -54,31 +54,42 @@ public:
 		d3d = _d3d;
 		ID3D12Device* creator;
 		d3d.GetDevice((void**)&creator);
-		d3d.GetSwapchain4((void**)&swapChain);
-		swapChain->GetDesc(&swapChainDesc);
 		mat.Create();
 		gController.Create();
 		gInput.Create(_win);
 		/////////////////////////////////////////////////////////////////////////////////
-
 		/////////////////////////////////////////////////////////////////////////////////
 		// Init View and Projection Matrix
 		//mat.IdentityF(view);
+		/*GW::MATH::GVECTORF eye = { 0.0f, 3.0f, -9.0f, 1.0f };
+		GW::MATH::GVECTORF at =  { 0.0f, 0.0f,  0.0f, 1.0f };
+		GW::MATH::GVECTORF up =  { 0.0f, 1.0f, 0.0f, 1.0f };
+		mat.LookAtLHF(eye, at, up, view);*/
+
+		mat.IdentityF(view);
+		GW::MATH::GVECTORF vecView = { 0, -1, 4, 1 };
+		mat.TranslateLocalF(view, vecView, view);
+		//mat.RotateXLocalF(view, (-30 * pi) / 180, view);
+		//mat.RotateZLocalF(view, (-30 * pi) / 180, view);
+		mat.RotateYLocalF(view, angleToRadian(100), view);
+
+		camera = view;
+		mat.InverseF(view, view);
+
 		float fov = angleToRadian(65);
 		float nPlane = 0.1f;
 		float fPlane = 100.0f;
 		float aspectRatio;
 		d3d.GetAspectRatio(aspectRatio);
 		mat.IdentityF(projection);
-		GW::MATH::GVECTORF eye = { 0.0f, 3.0f, -9.0f, 1.0f };
-		GW::MATH::GVECTORF at =  { 0.0f, 0.0f,  0.0f, 1.0f };
-		GW::MATH::GVECTORF up =  { 0.0f, 1.0f, 0.0f, 1.0f };
-		mat.LookAtLHF(eye, at, up, view);
 		mat.ProjectionDirectXLHF(fov, aspectRatio, nPlane, fPlane, projection);
+
+		sceneData.viewMatrix = view;
+		sceneData.projectionMatrix = projection;
 		/////////////////////////////////////////////////////////////////////////////////
 
 		/////////////////////////////////////////////////////////////////////////////////
-		//  Initialize Level and Create Vertex/Index Buffers
+		//  Initialize Level and Create Vertex, Index, and Constant Buffers
 		level.levelParse("../TestLevel.txt");
 
 		UINT offset = 0;
@@ -89,10 +100,8 @@ public:
 		descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		creator->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&descHeap));
 
-		SCENE_DATA data = {};
-		data.viewMatrix = view;
-		data.projectionMatrix = projection;
-		CreateConstantBuffer(creator, nullptr, sizeof(data), data);
+
+		CreateConstantBuffer(creator, nullptr, sizeof(sceneData), sceneData);
 		CreateConstantBufferSceneView(creator, offset);
 
 		for (auto it = level.uniqueMeshes.begin(); it != level.uniqueMeshes.end(); ++it)
@@ -105,14 +114,6 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 
 		//UINT desc_heap_size = _creator->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
-
-
-
-
-		
-
-
 
 
 
@@ -205,10 +206,6 @@ public:
 
 		// setup the pipeline
 		cmd->SetGraphicsRootSignature(rootSignature.Get());
-
-
-
-
 		cmd->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
 		cmd->SetPipelineState(pipeline.Get());
 
@@ -216,13 +213,23 @@ public:
 		// now we can draw
 		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-		cmd->SetGraphicsRootConstantBufferView(0, constantBuffer->GetGPUVirtualAddress());	// A
+		{
+			sceneData.viewMatrix = view;
+			UINT8* transferMemoryLocation;
+			sceneBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+				reinterpret_cast<void**>(&transferMemoryLocation));
+			memcpy(transferMemoryLocation, &sceneData, sizeof(SCENE_DATA));
+			sceneBuffer->Unmap(0, nullptr);
+		}
+
+
+		cmd->SetGraphicsRootConstantBufferView(0, sceneBuffer->GetGPUVirtualAddress());	// A
 
 		for (const auto& model : level.uniqueMeshes)
 		{
 			cmd->IASetVertexBuffers(0, 1, &model.second.vertexView);
 			cmd->IASetIndexBuffer(&model.second.indexView);
-			
+
 			for (size_t i = 0; i < model.second.worldMatrices.size(); i++)
 			{
 				cmd->SetGraphicsRootConstantBufferView(1, model.second.worldConstBuffer->GetGPUVirtualAddress() + (i * sizeof(GW::MATH::GMATRIXF)));	// B
@@ -230,13 +237,13 @@ public:
 				{
 					// C
 					UINT material_index = submesh.materialIndex;
+					cmd->SetGraphicsRootConstantBufferView(2, model.second.materialConstBuffer->GetGPUVirtualAddress() + (material_index * sizeof(H2B::MATERIAL)));
 					cmd->DrawIndexedInstanced(submesh.drawInfo.indexCount, 1, submesh.drawInfo.indexOffset, 0, 0);
 				}
 			}
 		}
 
 
-		//cmd->DrawInstanced(3, 1, 0, 0); // TODO: Part 1c
 
 		// release temp handles
 		cmd->Release();
@@ -245,12 +252,6 @@ public:
 	{
 		// ComPtr will auto release so nothing to do here 
 	}
-
-	/*void InitBuffers(ID3D12Device* _creator)
-	{
-		CreateVertexBuffer(_creator);
-		CreateIndexBuffer(_creator);
-	}*/
 
 	inline UINT Renderer::CalculateConstantBufferByteSize(UINT byteSize)
 	{
@@ -313,15 +314,15 @@ public:
 		HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
 			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(CalculateConstantBufferByteSize(constBuffMemory)),
-			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(constantBuffer.GetAddressOf()));
+			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(sceneBuffer.GetAddressOf()));
 		if (FAILED(hr))
 			throw(std::runtime_error::runtime_error("Error creating a scene const buffer."));
 
 		UINT8* transferMemoryLocation;
-		constantBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+		sceneBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 			reinterpret_cast<void**>(&transferMemoryLocation));
 		memcpy(transferMemoryLocation, &sceneData, sizeof(SCENE_DATA));
-		constantBuffer->Unmap(0, nullptr);
+		sceneBuffer->Unmap(0, nullptr);
 	}
 
 	void CreateConstantBuffer(ID3D12Device* _creator, Model* _model)
@@ -378,7 +379,7 @@ public:
 		UINT desc_heap_size = _creator->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferViewWorld;
-		bufferViewWorld.BufferLocation = constantBuffer->GetGPUVirtualAddress();
+		bufferViewWorld.BufferLocation = sceneBuffer->GetGPUVirtualAddress();
 		bufferViewWorld.SizeInBytes = CalculateConstantBufferByteSize(sizeof(GW::MATH::GMATRIXF) * 2);
 
 		CD3DX12_CPU_DESCRIPTOR_HANDLE handle(descHeap->GetCPUDescriptorHandleForHeapStart(), offset, desc_heap_size);
@@ -408,6 +409,107 @@ public:
 
 		offset++;
 	}
+
+
+
+
+	std::chrono::steady_clock::time_point start = std::chrono::high_resolution_clock::now();
+	std::chrono::steady_clock::time_point end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<float> duration;
+
+	void UpdateCamera()
+	{
+		//Timer t;
+		start = std::chrono::high_resolution_clock::now();
+		duration = start - end;
+
+		float Total_Y_Change = 0;
+		float Total_X_Change = 0;
+		float Total_Z_Change = 0;
+		float Camera_Speed = 1;
+
+		float SPACE_KEY_STATE;
+		gInput.GetState(G_KEY_SPACE, SPACE_KEY_STATE);
+		if (SPACE_KEY_STATE)
+			std::cout << "space";
+
+		float LSHIFT_KEY_STATE;
+		gInput.GetState(G_KEY_LEFTSHIFT, LSHIFT_KEY_STATE);
+		if (LSHIFT_KEY_STATE)
+			std::cout << "shift";
+
+		float W_KEY_STATE;
+		gInput.GetState(G_KEY_W, W_KEY_STATE);
+		if (W_KEY_STATE)
+			std::cout << "W";
+
+		float S_KEY_STATE;
+		gInput.GetState(G_KEY_S, S_KEY_STATE);
+		if (S_KEY_STATE)
+			std::cout << "S";
+
+		float D_KEY_STATE;
+		gInput.GetState(G_KEY_D, D_KEY_STATE);
+		if (D_KEY_STATE)
+			std::cout << "D";
+
+		float A_KEY_STATE;
+		gInput.GetState(G_KEY_A, A_KEY_STATE);
+		if (A_KEY_STATE)
+			std::cout << "A";
+
+		unsigned SCREEN_HEIGHT;
+		win.GetHeight(SCREEN_HEIGHT);
+		unsigned SCREEN_WIDTH;
+		win.GetWidth(SCREEN_WIDTH);
+
+		float RIGHT_STICK_X_AXIS_STATE = 0;
+		gController.GetState(0, G_RX_AXIS, RIGHT_STICK_X_AXIS_STATE);
+
+		float RIGHT_STICK_Y_AXIS_STATE = 0;
+		gController.GetState(0, G_RY_AXIS, RIGHT_STICK_Y_AXIS_STATE);
+
+		float LEFT_STICK_X_AXIS_STATE = 0;
+		gController.GetState(0, G_LX_AXIS, LEFT_STICK_X_AXIS_STATE);
+
+		float LEFT_STICK_Y_AXIS_STATE = 0;
+		gController.GetState(0, G_LY_AXIS, LEFT_STICK_Y_AXIS_STATE);
+
+		float RIGHT_TRIGGER_STATE = 0;
+		gController.GetState(0, G_RIGHT_TRIGGER_AXIS, RIGHT_TRIGGER_STATE);
+
+		float LEFT_TRIGGER_STATE = 0;
+		gController.GetState(0, G_LEFT_TRIGGER_AXIS, LEFT_TRIGGER_STATE);
+
+
+		float MOUSE_X_DELTA;
+		float MOUSE_Y_DELTA;
+		gInput.GetMouseDelta(MOUSE_X_DELTA, MOUSE_Y_DELTA);
+
+
+
+
+		float PerFrameSpeed = Camera_Speed * duration.count();
+		float Thumb_Speed = PI * duration.count();
+		float Total_Pitch = angleToRadian(65) * MOUSE_Y_DELTA / SCREEN_HEIGHT + RIGHT_STICK_Y_AXIS_STATE * -Thumb_Speed;
+		float Total_Yaw = angleToRadian(65) * MOUSE_X_DELTA / SCREEN_WIDTH + RIGHT_STICK_X_AXIS_STATE * Thumb_Speed;
+
+		Total_Y_Change = SPACE_KEY_STATE - LSHIFT_KEY_STATE + RIGHT_TRIGGER_STATE - LEFT_TRIGGER_STATE;
+		Total_Z_Change = W_KEY_STATE - S_KEY_STATE + LEFT_STICK_Y_AXIS_STATE;
+		Total_X_Change = D_KEY_STATE - A_KEY_STATE + LEFT_STICK_X_AXIS_STATE;
+		GW::MATH::GVECTORF vecXYZ = { Total_X_Change * PerFrameSpeed, Total_Y_Change * Camera_Speed * duration.count(), Total_Z_Change * PerFrameSpeed, 1 };
+
+		mat.RotateXLocalF(camera, Total_Pitch, camera);
+		mat.TranslateLocalF(camera, vecXYZ, camera);
+		mat.RotateYGlobalF(camera, Total_Yaw, camera);
+
+
+		mat.InverseF(camera, view);
+
+		end = std::chrono::high_resolution_clock::now();
+	}
+
+
 
 };
 

@@ -36,16 +36,20 @@ struct SCENE_DATA
     float4 padding[4];
 };
 
-struct MESH_DATA
+struct MESH_MATRIX
 {
     float4x4 world;
-    OBJ_ATTRIBUTES material;
-    unsigned int padding[28];
-
 };
 
-//ConstantBuffer<SCENE_DATA> cameraAndLights : register(b0, Space0);
-//ConstantBuffer<MESH_DATA> meshInfo : register(b1, Space0);
+struct MESH_MATERIAL
+{
+    OBJ_ATTRIBUTES material;
+};
+
+ConstantBuffer<SCENE_DATA> cameraAndLights : register(b0);
+ConstantBuffer<MESH_MATRIX> meshMatrix : register(b1);
+ConstantBuffer<MESH_MATERIAL> meshMaterial : register(b2);
+
 
 
 // TODO: Part 2b
@@ -65,5 +69,5 @@ float4 main(PS_IN input) : SV_TARGET
     //float3 result = ((lightRatio * cameraAndLights.sunColor.xyz) + cameraAndLights.sunAmbience.xyz) * (meshInfo.material.Kd + reflectedLight);
 
     // TODO: Part 4g
-    return float4(input.nrmW, 1); // TODO: Part 1a
+    return float4(meshMaterial.material.Kd, 1); // TODO: Part 1a
 }

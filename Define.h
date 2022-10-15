@@ -3,6 +3,7 @@
 #include "Gateware.h"
 #include <map>
 #include <string>
+#include <chrono>
 
 
 
@@ -16,16 +17,16 @@ struct SCENE_DATA
 };
 
 
-struct MESH_WORLD
-{
-	// per sub-mesh transform and material data
-	GW::MATH::GMATRIXF world; // final world space transform
-};
-
-struct MESH_MATERIAL
-{
-	H2B::ATTRIBUTES material; // color/texture of surface
-};
+//struct MESH_WORLD
+//{
+//	// per sub-mesh transform and material data
+//	GW::MATH::GMATRIXF world; // final world space transform
+//};
+//
+//struct MESH_MATERIAL
+//{
+//	H2B::ATTRIBUTES material; // color/texture of surface
+//};
 
 float angleToRadian(float input)
 {

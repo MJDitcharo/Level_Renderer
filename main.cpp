@@ -8,6 +8,8 @@
 #define GATEWARE_DISABLE_GOPENGLSURFACE // we have another template for this
 #define GATEWARE_DISABLE_GVULKANSURFACE // we have another template for this
 #define GATEWARE_DISABLE_GRASTERSURFACE // we have another template for this
+#define GATEWARE_ENABLE_INPUT
+
 // With what we want & what we don't defined we can include the API
 //#include "Gateware.h"
 #include "renderer.h"
@@ -48,6 +50,7 @@ int main()
 					{
 						cmd->ClearRenderTargetView(rtv, clr, 0, nullptr);
 						cmd->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1, 0, 0, nullptr);
+						renderer.UpdateCamera();
 						renderer.Render(); // draw
 						d3d12.EndFrame(false);
 						cmd->Release();
