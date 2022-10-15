@@ -52,10 +52,6 @@ ConstantBuffer<MESH_MATERIAL> meshMaterial : register(b2);
 
 
 
-// TODO: Part 2b
-// TODO: Part 4f
-// TODO: Part 4b
-
 float4 main(PS_IN input) : SV_TARGET
 {
     
@@ -68,6 +64,5 @@ float4 main(PS_IN input) : SV_TARGET
     //float lightRatio = saturate(dot(-cameraAndLights.sunDirection.xyz, input.nrmW));
     //float3 result = ((lightRatio * cameraAndLights.sunColor.xyz) + cameraAndLights.sunAmbience.xyz) * (meshInfo.material.Kd + reflectedLight);
 
-    // TODO: Part 4g
     return float4(meshMaterial.material.Kd, 1); // TODO: Part 1a
 }

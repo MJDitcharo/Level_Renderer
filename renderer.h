@@ -204,6 +204,9 @@ public:
 		// now we can draw
 		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+		/////////////////////////////////////////////////////////////////////////////////////////
+		// Update View Matrix for camera Movement
+		/////////////////////////////////////////////////////////////////////////////////////////
 		{
 			sceneData.viewMatrix = view;
 			UINT8* transferMemoryLocation;
@@ -212,10 +215,11 @@ public:
 			memcpy(transferMemoryLocation, &sceneData, sizeof(SCENE_DATA));
 			sceneBuffer->Unmap(0, nullptr);
 		}
-
-
-		cmd->SetGraphicsRootConstantBufferView(0, sceneBuffer->GetGPUVirtualAddress());	// A
-
+		/////////////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
+		// A: Set Scene Buffer
+		/////////////////////////////////////////////////////////////////////////////////////////
+		cmd->SetGraphicsRootConstantBufferView(0, sceneBuffer->GetGPUVirtualAddress());
 		for (const auto& model : level.uniqueMeshes)
 		{
 			cmd->IASetVertexBuffers(0, 1, &model.second.vertexView);
@@ -223,18 +227,24 @@ public:
 
 			for (size_t i = 0; i < model.second.worldMatrices.size(); i++)
 			{
-				cmd->SetGraphicsRootConstantBufferView(1, model.second.worldConstBuffer->GetGPUVirtualAddress() + (i * sizeof(GW::MATH::GMATRIXF)));	// B
+				/////////////////////////////////////////////////////////////////////////////////
+				// B: Set World Matrix Buffer for each instance of model
+				/////////////////////////////////////////////////////////////////////////////////
+				cmd->SetGraphicsRootConstantBufferView(1, model.second.worldConstBuffer->GetGPUVirtualAddress() + (i * sizeof(GW::MATH::GMATRIXF)));
 				for (const auto& submesh : model.second.parser.meshes)
 				{
-					// C
+					/////////////////////////////////////////////////////////////////////////////
+					// C: Set Material Buffer for each submesh in the model
+					/////////////////////////////////////////////////////////////////////////////
+
 					UINT material_index = submesh.materialIndex;
 					cmd->SetGraphicsRootConstantBufferView(2, model.second.materialConstBuffer->GetGPUVirtualAddress() + (material_index * sizeof(H2B::MATERIAL)));
 					cmd->DrawIndexedInstanced(submesh.drawInfo.indexCount, 1, submesh.drawInfo.indexOffset, 0, 0);
 				}
 			}
 		}
-
-
+		/////////////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////////////
 
 		// release temp handles
 		cmd->Release();
@@ -252,7 +262,8 @@ public:
 	void CreateVertexBuffer(ID3D12Device* _creator, Model* _model)
 	{
 		unsigned vertBufferSize = sizeof(H2B::VERTEX) * _model->parser.vertexCount;
-
+		/////////////////////////////////////////////////////////////////////////////////
+		// Create a new Vertex Buffer
 		HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
 			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(vertBufferSize),
@@ -261,41 +272,50 @@ public:
 			hr = _creator->GetDeviceRemovedReason();
 			throw(std::runtime_error::runtime_error("Error creating a vertex buffer."));
 		}
-
+		/////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////
+		// Move data into new Vertex Buffer
 		UINT8* transferMemoryLocation;
 		_model->vertexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 			reinterpret_cast<void**>(&transferMemoryLocation));
 		memcpy(transferMemoryLocation, _model->parser.vertices.data(), vertBufferSize);
 		_model->vertexBuffer->Unmap(0, nullptr);
-
-
+		/////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////
 		// Create a vertex View to send to a Draw() call.
 		_model->vertexView.BufferLocation = _model->vertexBuffer->GetGPUVirtualAddress();
 		_model->vertexView.StrideInBytes = sizeof(H2B::VERTEX);
 		_model->vertexView.SizeInBytes = vertBufferSize;
+		/////////////////////////////////////////////////////////////////////////////////
 	}
 
 	void CreateIndexBuffer(ID3D12Device* _creator, Model* _model)
 	{
 		unsigned indexBufferSize = sizeof(unsigned) * _model->parser.indexCount;
-
+		/////////////////////////////////////////////////////////////////////////////////
+		// Create a new Index Buffer
 		HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
 			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize),
 			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(_model->indexBuffer.GetAddressOf()));
 		if (FAILED(hr))
 			throw(std::runtime_error::runtime_error("Error creating an index buffer."));
-
+		/////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////
+		// Move Index Data into the new buffer 
 		UINT8* transferMemoryLocation;
 		_model->indexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 			reinterpret_cast<void**>(&transferMemoryLocation));
 		memcpy(transferMemoryLocation, _model->parser.indices.data(), indexBufferSize);
 		_model->indexBuffer->Unmap(0, nullptr);
-
+		/////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////
 		// Create IndexView 
 		_model->indexView.BufferLocation = _model->indexBuffer->GetGPUVirtualAddress();
 		_model->indexView.SizeInBytes = indexBufferSize;
 		_model->indexView.Format = DXGI_FORMAT_R32_UINT;
+		/////////////////////////////////////////////////////////////////////////////////
+
 	}
 
 	void CreateConstantBuffer(ID3D12Device* _creator, Model* _model, unsigned constBuffMemory, SCENE_DATA sceneData)
@@ -382,31 +402,36 @@ public:
 	{
 		UINT desc_heap_size = _creator->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+		/////////////////////////////////////////////////////////////////////////////////
+		// World Matrix Const Buffer View
 		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferViewWorld;
 		bufferViewWorld.BufferLocation = _model->worldConstBuffer->GetGPUVirtualAddress();
 		bufferViewWorld.SizeInBytes = CalculateConstantBufferByteSize(_model->worldMatrices.size() * sizeof(GW::MATH::GMATRIXF));
-
 		_model->descHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(descHeap->GetCPUDescriptorHandleForHeapStart(), offset, desc_heap_size);
+
 		_creator->CreateConstantBufferView(&bufferViewWorld, _model->descHandle);
-
 		offset++;
-
+		/////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////
+		// Material Const Buffer View
 		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferView;
 		bufferView.BufferLocation = _model->materialConstBuffer->GetGPUVirtualAddress();
 		bufferView.SizeInBytes = CalculateConstantBufferByteSize(sizeof(H2B::MATERIAL) * _model->parser.materialCount);
 
-		//_model->descHandle = descHeap->GetCPUDescriptorHandleForHeapStart();
 		_creator->CreateConstantBufferView(&bufferViewWorld, CD3DX12_CPU_DESCRIPTOR_HANDLE(descHeap->GetCPUDescriptorHandleForHeapStart(), offset, desc_heap_size));
-
 		offset++;
+		/////////////////////////////////////////////////////////////////////////////////
+
 	}
 
 
 
-
+	/////////////////////////////////////////////////////////////////////////////////
+	// Timer for camera
 	std::chrono::steady_clock::time_point start = std::chrono::high_resolution_clock::now();
 	std::chrono::steady_clock::time_point end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float> duration;
+	/////////////////////////////////////////////////////////////////////////////////
 
 	void UpdateCamera()
 	{

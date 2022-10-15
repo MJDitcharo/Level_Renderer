@@ -45,12 +45,6 @@ struct MESH_MATERIAL
     OBJ_ATTRIBUTES material;
 };
 
-struct OUTPUT_TO_RASTERIZER
-{
-    float4 posH : SV_POSITION; // homogeneous projection space
-    float3 nrmW : NORMAL; // normal in world space (for lighting)
-    float3 posW : WORLD; // position in world space (for lighting)
-};
 
 ConstantBuffer<SCENE_DATA>    cameraAndLights    : register(b0);
 ConstantBuffer<MESH_MATRIX>   meshMatrix		 : register(b1);
