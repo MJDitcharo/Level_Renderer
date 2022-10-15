@@ -60,21 +60,12 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// Init View and Projection Matrix
-		//mat.IdentityF(view);
-		/*GW::MATH::GVECTORF eye = { 0.0f, 3.0f, -9.0f, 1.0f };
+		mat.IdentityF(view);
+		GW::MATH::GVECTORF eye = { 0.0f, 3.0f, -9.0f, 1.0f };
 		GW::MATH::GVECTORF at =  { 0.0f, 0.0f,  0.0f, 1.0f };
 		GW::MATH::GVECTORF up =  { 0.0f, 1.0f, 0.0f, 1.0f };
-		mat.LookAtLHF(eye, at, up, view);*/
-
-		mat.IdentityF(view);
-		GW::MATH::GVECTORF vecView = { 0, -1, 4, 1 };
-		mat.TranslateLocalF(view, vecView, view);
-		//mat.RotateXLocalF(view, (-30 * pi) / 180, view);
-		//mat.RotateZLocalF(view, (-30 * pi) / 180, view);
-		mat.RotateYLocalF(view, angleToRadian(100), view);
-
-		camera = view;
-		mat.InverseF(view, view);
+		mat.LookAtLHF(eye, at, up, view);
+		mat.InverseF(view, camera);
 
 		float fov = angleToRadian(65);
 		float nPlane = 0.1f;
@@ -426,37 +417,30 @@ public:
 		float Total_Y_Change = 0;
 		float Total_X_Change = 0;
 		float Total_Z_Change = 0;
-		float Camera_Speed = 1;
+		float Camera_Speed = 5;
+
+#pragma region States
 
 		float SPACE_KEY_STATE;
 		gInput.GetState(G_KEY_SPACE, SPACE_KEY_STATE);
-		if (SPACE_KEY_STATE)
-			std::cout << "space";
+
 
 		float LSHIFT_KEY_STATE;
 		gInput.GetState(G_KEY_LEFTSHIFT, LSHIFT_KEY_STATE);
-		if (LSHIFT_KEY_STATE)
-			std::cout << "shift";
+		
 
 		float W_KEY_STATE;
 		gInput.GetState(G_KEY_W, W_KEY_STATE);
-		if (W_KEY_STATE)
-			std::cout << "W";
+	
 
 		float S_KEY_STATE;
 		gInput.GetState(G_KEY_S, S_KEY_STATE);
-		if (S_KEY_STATE)
-			std::cout << "S";
 
 		float D_KEY_STATE;
 		gInput.GetState(G_KEY_D, D_KEY_STATE);
-		if (D_KEY_STATE)
-			std::cout << "D";
 
 		float A_KEY_STATE;
 		gInput.GetState(G_KEY_A, A_KEY_STATE);
-		if (A_KEY_STATE)
-			std::cout << "A";
 
 		unsigned SCREEN_HEIGHT;
 		win.GetHeight(SCREEN_HEIGHT);
@@ -484,7 +468,13 @@ public:
 
 		float MOUSE_X_DELTA;
 		float MOUSE_Y_DELTA;
-		gInput.GetMouseDelta(MOUSE_X_DELTA, MOUSE_Y_DELTA);
+		if (gInput.GetMouseDelta(MOUSE_X_DELTA, MOUSE_Y_DELTA) == GW::GReturn::REDUNDANT)
+		{
+			MOUSE_X_DELTA = 0;
+			MOUSE_Y_DELTA = 0;
+		}
+
+#pragma endregion
 
 
 
