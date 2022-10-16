@@ -5,6 +5,8 @@ class Level
 public:
 
 	std::map<std::string, Model> uniqueMeshes;
+	std::vector<GW::MATH::GMATRIXF> cameras;
+	std::vector<GW::MATH::GMATRIXF> lights;
 
 	void levelParse(const char* fileName);
 
@@ -36,9 +38,9 @@ void Level::levelParse(const char* fileName)
 	{
 		std::string str, h2b, strTemp;
 		std::getline(f, str, '\n');
-		if (std::strcmp(str.c_str(), "MESH") == 0/* || std::strcmp(str.c_str(), "LIGHT") == 0 || std::strcmp(str.c_str(), "CAMERA") == 0*/)
+		if (std::strcmp(str.c_str(), "MESH") == 0 || std::strcmp(str.c_str(), "LIGHT") == 0 || std::strcmp(str.c_str(), "CAMERA") == 0)
 		{
-			// Get and Print .h2b
+			// Get .h2b
 			std::getline(f, h2b, '\n');
 
 			// First Matrix Row
@@ -117,26 +119,38 @@ void Level::levelParse(const char* fileName)
 				}
 			}
 
-
-			size_t lastindex = h2b.find_last_of(".");
-			std::string rawName = h2b.substr(0, lastindex);
-
-			auto iter = uniqueMeshes.find(rawName);
-
-			if (uniqueMeshes.end() != iter)
+			if (std::strcmp(str.c_str(), "LIGHT") == 0)
 			{
-				uniqueMeshes[rawName].worldMatrices.push_back(createMatrix(values));
+				lights.push_back(createMatrix(values));
 			}
-			else
+
+			if (std::strcmp(str.c_str(), "CAMERA") == 0)
 			{
-				std::string filePath = "../assets/OBJ/" + rawName + ".h2b";
+				cameras.push_back(createMatrix(values));
+			}
 
-				Model modelTemp;
-				if (modelTemp.parser.Parse(filePath.c_str()))
+			if (std::strcmp(str.c_str(), "MESH") == 0)
+			{
+				size_t lastindex = h2b.find_last_of(".");
+				std::string rawName = h2b.substr(0, lastindex);
+
+				auto iter = uniqueMeshes.find(rawName);
+
+				if (uniqueMeshes.end() != iter)
 				{
-					modelTemp.worldMatrices.push_back(createMatrix(values));
+					uniqueMeshes[rawName].worldMatrices.push_back(createMatrix(values));
+				}
+				else
+				{
+					std::string filePath = "../assets/OBJ/" + rawName + ".h2b";
 
-					uniqueMeshes[rawName] = modelTemp;
+					Model modelTemp;
+					if (modelTemp.parser.Parse(filePath.c_str()))
+					{
+						modelTemp.worldMatrices.push_back(createMatrix(values));
+
+						uniqueMeshes[rawName] = modelTemp;
+					}
 				}
 			}
 

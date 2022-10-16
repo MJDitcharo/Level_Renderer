@@ -65,7 +65,8 @@ public:
 		GW::MATH::GVECTORF at =  { 0.0f, 0.0f,  0.0f, 1.0f };
 		GW::MATH::GVECTORF up =  { 0.0f, 1.0f, 0.0f, 1.0f };
 		mat.LookAtLHF(eye, at, up, view);
-		mat.InverseF(view, camera);
+
+		mat.InverseF(view, camera);;
 
 		float fov = angleToRadian(65);
 		float nPlane = 0.1f;
@@ -74,7 +75,23 @@ public:
 		d3d.GetAspectRatio(aspectRatio);
 		mat.IdentityF(projection);
 		mat.ProjectionDirectXLHF(fov, aspectRatio, nPlane, fPlane, projection);
+		/////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////
+		// Init Directional Light
+		GW::MATH::GVECTORF sunColor = { 0, 168 / 255.0f, 107 / 255.0f, 1 };
+		GW::MATH::GVECTORF ambientVec = { 0.25f, 0.25f, 0.35f, 1 };
 
+		GW::MATH::GVECTORF sunDirection = { -2, -2, 2, 0};
+		vecProxy.NormalizeF(sunDirection, sunDirection);
+
+		GW::MATH::GVECTORF sunColorVec = { 0.9f, 0.9f, 1.0f, 1.0f };
+		/////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////
+		// Set SceneData members
+		sceneData.sunAmbience = ambientVec;
+		sceneData.sunDirection = sunDirection;
+		sceneData.sunColor = sunColorVec;
+		sceneData.cameraPos = eye;
 		sceneData.viewMatrix = view;
 		sceneData.projectionMatrix = projection;
 		/////////////////////////////////////////////////////////////////////////////////

@@ -12,8 +12,9 @@ constexpr auto PI = 3.14;
 struct SCENE_DATA
 {
 	GW::MATH::GVECTORF sunDirection, sunColor, sunAmbience, cameraPos; // lighting info
+	GW::MATH::GVECTORF pointLights[2];
 	GW::MATH::GMATRIXF viewMatrix, projectionMatrix; // viewing info
-	GW::MATH::GVECTORF padding[4]; // D3D12 requires 256 byte aligned constant buffers
+	GW::MATH::GVECTORF padding[2]; // D3D12 requires 256 byte aligned constant buffers
 };
 
 

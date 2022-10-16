@@ -31,8 +31,9 @@ struct OBJ_ATTRIBUTES
 struct SCENE_DATA
 {
 	float4 sunDirection, sunColor, sunAmbience, cameraPos;
+	float4 pointLights[2];
 	float4x4 viewMatrix, projectionMatrix;
-	float4 padding[4];
+	float4 padding[2];
 };
 
 struct MESH_MATRIX
@@ -68,5 +69,4 @@ VS_OUT main(VS_IN input)
 	
 
 	return output;
-	// TODO: Part 4b
 }

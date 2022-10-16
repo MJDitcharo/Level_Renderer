@@ -32,8 +32,9 @@ struct OUTPUT_TO_RASTERIZER
 struct SCENE_DATA
 {
     float4 sunDirection, sunColor, sunAmbience, cameraPos;
+    float4 pointLights[2];
     float4x4 viewMatrix, projectionMatrix;
-    float4 padding[4];
+    float4 padding[2];
 };
 
 struct MESH_MATRIX
@@ -55,14 +56,14 @@ ConstantBuffer<MESH_MATERIAL> meshMaterial : register(b2);
 float4 main(PS_IN input) : SV_TARGET
 {
     
-    //float3 viewDir = normalize(cameraAndLights.cameraPos.xyz - input.posW);
-    //float3 halfVector = normalize((-cameraAndLights.sunDirection.xyz) + viewDir);
-    //float intensity = max(pow(saturate(dot(input.nrmW, halfVector)), meshInfo.material.Ns), 0);
-    //float reflectedLight = cameraAndLights.sunColor.xyz * meshInfo.material.Ks * intensity;
+    float3 viewDir = normalize(cameraAndLights.cameraPos.xyz - input.posW);
+    float3 halfVector = normalize((-cameraAndLights.sunDirection.xyz) + viewDir);
+    float intensity = (max(pow(saturate(dot(input.nrmW, halfVector)), meshMaterial.material.Ns), 0)) * .3f;
+    float reflectedLight = cameraAndLights.sunColor.xyz * meshMaterial.material.Ks * intensity;
     
     
-    //float lightRatio = saturate(dot(-cameraAndLights.sunDirection.xyz, input.nrmW));
-    //float3 result = ((lightRatio * cameraAndLights.sunColor.xyz) + cameraAndLights.sunAmbience.xyz) * (meshInfo.material.Kd + reflectedLight);
+    float lightRatio = saturate(dot(-cameraAndLights.sunDirection.xyz, input.nrmW));
+    float3 result = ((lightRatio * cameraAndLights.sunColor.xyz) + cameraAndLights.sunAmbience.xyz) * (meshMaterial.material.Kd + reflectedLight);
 
-    return float4(meshMaterial.material.Kd, 1); // TODO: Part 1a
+    return float4(result, 1); // TODO: Part 1a
 }
