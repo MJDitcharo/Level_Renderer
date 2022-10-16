@@ -78,10 +78,9 @@ public:
 		sceneData.viewMatrix = view;
 		sceneData.projectionMatrix = projection;
 		/////////////////////////////////////////////////////////////////////////////////
-
 		/////////////////////////////////////////////////////////////////////////////////
 		//  Initialize Level and Create Vertex, Index, and Constant Buffers
-		level.levelParse("../TestLevel.txt");
+		level.levelParse("../Dungeon.txt");
 
 		UINT offset = 0;
 

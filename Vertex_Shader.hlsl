@@ -53,7 +53,6 @@ ConstantBuffer<MESH_MATERIAL> meshMaterial       : register(b2);
 
 VS_OUT main(VS_IN input)
 {
-
 	
     VS_OUT output = (VS_OUT) 0;
     output.posW = input.pos;
