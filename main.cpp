@@ -9,7 +9,6 @@
 #define GATEWARE_DISABLE_GVULKANSURFACE // we have another template for this
 #define GATEWARE_DISABLE_GRASTERSURFACE // we have another template for this
 #define GATEWARE_ENABLE_INPUT
-
 // With what we want & what we don't defined we can include the API
 //#include "Gateware.h"
 #include "renderer.h"
@@ -27,7 +26,7 @@ int main()
 	if (+win.Create(0, 0, 800, 600, GWindowStyle::WINDOWEDBORDERED))
 	{
 		// TODO: Part 1a
-		float clr[] = { 0, 168/255.0f, 107/255.0f, 1 }; // start with a jade color
+		float clr[] = { 4.659/255, 1.863/255, 24.535/255, 1 }; // start with a jade color
 		msgs.Create([&](const GW::GEvent& e) {
 			GW::SYSTEM::GWindow::Events q;
 			if (+e.Read(q) && q == GWindow::Events::RESIZE)

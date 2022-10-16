@@ -50,6 +50,7 @@ public:
 
 		/////////////////////////////////////////////////////////////////////////////////
 		// Initialize Proxies
+		/////////////////////////////////////////////////////////////////////////////////
 		win = _win;
 		d3d = _d3d;
 		ID3D12Device* creator;
@@ -60,6 +61,7 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// Init View and Projection Matrix
+		/////////////////////////////////////////////////////////////////////////////////
 		mat.IdentityF(view);
 		GW::MATH::GVECTORF eye = { 0.0f, 3.0f, -9.0f, 1.0f };
 		GW::MATH::GVECTORF at =  { 0.0f, 0.0f,  0.0f, 1.0f };
@@ -78,35 +80,34 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// Init Directional Light
-		GW::MATH::GVECTORF sunColor = { 0, 168 / 255.0f, 107 / 255.0f, 1 };
-		GW::MATH::GVECTORF ambientVec = { 0.25f, 0.25f, 0.35f, 1 };
+		/////////////////////////////////////////////////////////////////////////////////
+		GW::MATH::GVECTORF sunColor = { .75, .75, .5, 1 };
+		GW::MATH::GVECTORF ambientVec = { 0.10f, 0.10f, 0.20f, 1 };
 
 		GW::MATH::GVECTORF sunDirection = { -2, -2, 2, 0};
 		vecProxy.NormalizeF(sunDirection, sunDirection);
 
-		GW::MATH::GVECTORF sunColorVec = { 0.9f, 0.9f, 1.0f, 1.0f };
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// Set SceneData members
 		sceneData.sunAmbience = ambientVec;
 		sceneData.sunDirection = sunDirection;
-		sceneData.sunColor = sunColorVec;
+		sceneData.sunColor = sunColor;
 		sceneData.cameraPos = eye;
 		sceneData.viewMatrix = view;
 		sceneData.projectionMatrix = projection;
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		//  Initialize Level and Create Vertex, Index, and Constant Buffers
+		/////////////////////////////////////////////////////////////////////////////////
 		level.levelParse("../Dungeon.txt");
 
 		UINT offset = 0;
-
 		D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc{};
 		descHeapDesc.NumDescriptors = 1 + (2 * level.uniqueMeshes.size());
 		descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		creator->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&descHeap));
-
 
 		CreateConstantBuffer(creator, nullptr, sizeof(sceneData), sceneData);
 		CreateConstantBufferSceneView(creator, offset);
@@ -119,14 +120,9 @@ public:
 			CreateConstantBufferModelView(creator, &it->second, offset);
 		}
 		/////////////////////////////////////////////////////////////////////////////////
-
-		//UINT desc_heap_size = _creator->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
-
-
-
-
+		/////////////////////////////////////////////////////////////////////////////////
 		// Create Vertex Shader
+		/////////////////////////////////////////////////////////////////////////////////
 		UINT compilerFlags = D3DCOMPILE_ENABLE_STRICTNESS;
 #if _DEBUG
 		compilerFlags |= D3DCOMPILE_DEBUG;
@@ -141,8 +137,9 @@ public:
 			std::cout << (char*)errors->GetBufferPointer() << std::endl;
 			abort();
 		}
+		/////////////////////////////////////////////////////////////////////////////////
 		// Create Pixel Shader
-
+		/////////////////////////////////////////////////////////////////////////////////
 		std::string PS = ShaderAsString("../Pixel_Shader.hlsl");
 		Microsoft::WRL::ComPtr<ID3DBlob> psBlob; errors.Reset();
 		if (FAILED(D3DCompile(PS.c_str(), strlen(PS.c_str()),
@@ -153,8 +150,9 @@ public:
 			abort();
 		}
 
-		// TODO: Part 1e
+		/////////////////////////////////////////////////////////////////////////////////
 		// Create Input Layout
+		/////////////////////////////////////////////////////////////////////////////////
 		D3D12_INPUT_ELEMENT_DESC format[] = {
 
 			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -216,7 +214,6 @@ public:
 		cmd->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
 		cmd->SetPipelineState(pipeline.Get());
 
-
 		// now we can draw
 		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
@@ -225,6 +222,7 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////////////
 		{
 			sceneData.viewMatrix = view;
+			sceneData.cameraPos = { camera.row4.x, camera.row4.y, camera.row4.z, 1};
 			UINT8* transferMemoryLocation;
 			sceneBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 				reinterpret_cast<void**>(&transferMemoryLocation));
@@ -240,7 +238,6 @@ public:
 		{
 			cmd->IASetVertexBuffers(0, 1, &model.second.vertexView);
 			cmd->IASetIndexBuffer(&model.second.indexView);
-
 			for (size_t i = 0; i < model.second.worldMatrices.size(); i++)
 			{
 				/////////////////////////////////////////////////////////////////////////////////
@@ -252,7 +249,6 @@ public:
 					/////////////////////////////////////////////////////////////////////////////
 					// C: Set Material Buffer for each submesh in the model
 					/////////////////////////////////////////////////////////////////////////////
-
 					UINT material_index = submesh.materialIndex;
 					cmd->SetGraphicsRootConstantBufferView(2, model.second.materialConstBuffer->GetGPUVirtualAddress() + (material_index * sizeof(H2B::MATERIAL)));
 					cmd->DrawIndexedInstanced(submesh.drawInfo.indexCount, 1, submesh.drawInfo.indexOffset, 0, 0);
@@ -299,6 +295,7 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// Create a vertex View to send to a Draw() call.
+		/////////////////////////////////////////////////////////////////////////////////
 		_model->vertexView.BufferLocation = _model->vertexBuffer->GetGPUVirtualAddress();
 		_model->vertexView.StrideInBytes = sizeof(H2B::VERTEX);
 		_model->vertexView.SizeInBytes = vertBufferSize;
@@ -310,6 +307,7 @@ public:
 		unsigned indexBufferSize = sizeof(unsigned) * _model->parser.indexCount;
 		/////////////////////////////////////////////////////////////////////////////////
 		// Create a new Index Buffer
+		/////////////////////////////////////////////////////////////////////////////////
 		HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
 			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize),
@@ -319,6 +317,7 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// Move Index Data into the new buffer 
+		/////////////////////////////////////////////////////////////////////////////////
 		UINT8* transferMemoryLocation;
 		_model->indexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 			reinterpret_cast<void**>(&transferMemoryLocation));
@@ -327,6 +326,7 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// Create IndexView 
+		/////////////////////////////////////////////////////////////////////////////////
 		_model->indexView.BufferLocation = _model->indexBuffer->GetGPUVirtualAddress();
 		_model->indexView.SizeInBytes = indexBufferSize;
 		_model->indexView.Format = DXGI_FORMAT_R32_UINT;
@@ -360,7 +360,6 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 		// World Const Buffer
 		{
-
 			unsigned constantBufferSize = CalculateConstantBufferByteSize(sizeof(GW::MATH::GMATRIXF) * _model->worldMatrices.size());
 			HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
@@ -414,12 +413,14 @@ public:
 
 		offset++;
 	}
+
 	void CreateConstantBufferModelView(ID3D12Device* _creator, Model* _model, UINT& offset)
 	{
 		UINT desc_heap_size = _creator->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 		/////////////////////////////////////////////////////////////////////////////////
 		// World Matrix Const Buffer View
+	    /////////////////////////////////////////////////////////////////////////////////
 		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferViewWorld;
 		bufferViewWorld.BufferLocation = _model->worldConstBuffer->GetGPUVirtualAddress();
 		bufferViewWorld.SizeInBytes = CalculateConstantBufferByteSize(_model->worldMatrices.size() * sizeof(GW::MATH::GMATRIXF));
@@ -430,6 +431,7 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// Material Const Buffer View
+	    /////////////////////////////////////////////////////////////////////////////////
 		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferView;
 		bufferView.BufferLocation = _model->materialConstBuffer->GetGPUVirtualAddress();
 		bufferView.SizeInBytes = CalculateConstantBufferByteSize(sizeof(H2B::MATERIAL) * _model->parser.materialCount);
@@ -444,6 +446,7 @@ public:
 
 	/////////////////////////////////////////////////////////////////////////////////
 	// Timer for camera
+	/////////////////////////////////////////////////////////////////////////////////
 	std::chrono::steady_clock::time_point start = std::chrono::high_resolution_clock::now();
 	std::chrono::steady_clock::time_point end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float> duration;
