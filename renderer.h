@@ -67,7 +67,6 @@ public:
 		GW::MATH::GVECTORF at =  { 0.0f, 0.0f,  0.0f, 1.0f };
 		GW::MATH::GVECTORF up =  { 0.0f, 1.0f, 0.0f, 1.0f };
 		mat.LookAtLHF(eye, at, up, view);
-
 		mat.InverseF(view, camera);;
 
 		float fov = angleToRadian(65);
@@ -83,13 +82,12 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 		GW::MATH::GVECTORF sunColor = { .75, .75, .5, 1 };
 		GW::MATH::GVECTORF ambientVec = { 0.10f, 0.10f, 0.20f, 1 };
-
 		GW::MATH::GVECTORF sunDirection = { -2, -2, 2, 0};
 		vecProxy.NormalizeF(sunDirection, sunDirection);
-
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// Set SceneData members
+		/////////////////////////////////////////////////////////////////////////////////
 		sceneData.sunAmbience = ambientVec;
 		sceneData.sunDirection = sunDirection;
 		sceneData.sunColor = sunColor;
@@ -160,14 +158,15 @@ public:
 			{ "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 
 		};
-
-
+		/////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////
+		// Create Root Parameters and Root Signature
+		/////////////////////////////////////////////////////////////////////////////////
 		CD3DX12_ROOT_PARAMETER rootParams[3];
 		rootParams[0].InitAsConstantBufferView(0);
 		rootParams[1].InitAsConstantBufferView(1);
 		rootParams[2].InitAsConstantBufferView(2);
 
-		// create root signature
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
 		rootSignatureDesc.Init(ARRAYSIZE(rootParams), rootParams, 0, nullptr,
 			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
@@ -176,8 +175,10 @@ public:
 			D3D_ROOT_SIGNATURE_VERSION_1, &signature, &errors);
 		creator->CreateRootSignature(0, signature->GetBufferPointer(),
 			signature->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
-
+		/////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////
 		// create pipeline state
+		/////////////////////////////////////////////////////////////////////////////////
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psDesc;
 		ZeroMemory(&psDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
 		psDesc.InputLayout = { format, ARRAYSIZE(format) };
@@ -194,7 +195,10 @@ public:
 		psDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 		psDesc.SampleDesc.Count = 1;
 		creator->CreateGraphicsPipelineState(&psDesc, IID_PPV_ARGS(&pipeline));
+		/////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////
 		// free temporary handle
+		/////////////////////////////////////////////////////////////////////////////////
 		creator->Release();
 	}
 	void Render()
