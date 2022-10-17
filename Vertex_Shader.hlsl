@@ -62,8 +62,8 @@ VS_OUT main(VS_IN input)
     output.posH = mul(output.posH, cameraAndLights.viewMatrix);
     output.posH = mul(output.posH, cameraAndLights.projectionMatrix);
 	
-    output.posW = mul(float4(input.pos, 1), meshMatrix.world);
-    output.nrmW = mul(input.norm, meshMatrix.world);
+    output.posW = mul(float4(input.pos, 1), meshMatrix.world).xyz;
+    output.nrmW = mul(float4(input.norm, 0), meshMatrix.world).xyz;
 	output.tex = input.tex;
 	
 
