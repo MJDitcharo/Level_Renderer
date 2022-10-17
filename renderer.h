@@ -275,11 +275,13 @@ public:
 		return (byteSize + (D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT - 1)) & ~(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT - 1);
 	};
 
+
 	void CreateVertexBuffer(ID3D12Device* _creator, Model* _model)
 	{
 		unsigned vertBufferSize = sizeof(H2B::VERTEX) * _model->parser.vertexCount;
 		/////////////////////////////////////////////////////////////////////////////////
 		// Create a new Vertex Buffer
+		/////////////////////////////////////////////////////////////////////////////////
 		HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
 			D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(vertBufferSize),
@@ -291,6 +293,7 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// Move data into new Vertex Buffer
+		/////////////////////////////////////////////////////////////////////////////////
 		UINT8* transferMemoryLocation;
 		_model->vertexBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 			reinterpret_cast<void**>(&transferMemoryLocation));
@@ -363,6 +366,7 @@ public:
 
 		/////////////////////////////////////////////////////////////////////////////////
 		// World Const Buffer
+		/////////////////////////////////////////////////////////////////////////////////
 		{
 			unsigned constantBufferSize = CalculateConstantBufferByteSize(sizeof(GW::MATH::GMATRIXF) * _model->worldMatrices.size());
 			HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
@@ -381,6 +385,7 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// Material Const Buffer
+		/////////////////////////////////////////////////////////////////////////////////
 		{
 			unsigned constantBufferSize = CalculateConstantBufferByteSize(sizeof(H2B::MATERIAL) * _model->parser.materialCount);
 			HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
@@ -399,8 +404,6 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 
 
-
-
 	}
 
 	void CreateConstantBufferSceneView(ID3D12Device* _creator, UINT& offset)
@@ -408,12 +411,12 @@ public:
 
 		UINT desc_heap_size = _creator->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferViewWorld;
-		bufferViewWorld.BufferLocation = sceneBuffer->GetGPUVirtualAddress();
-		bufferViewWorld.SizeInBytes = CalculateConstantBufferByteSize(sizeof(GW::MATH::GMATRIXF) * 2);
+		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferViewScene;
+		bufferViewScene.BufferLocation = sceneBuffer->GetGPUVirtualAddress();
+		bufferViewScene.SizeInBytes = CalculateConstantBufferByteSize(sizeof(SCENE_DATA));
 
 		CD3DX12_CPU_DESCRIPTOR_HANDLE handle(descHeap->GetCPUDescriptorHandleForHeapStart(), offset, desc_heap_size);
-		_creator->CreateConstantBufferView(&bufferViewWorld, handle);
+		_creator->CreateConstantBufferView(&bufferViewScene, handle);
 
 		offset++;
 	}
@@ -428,19 +431,19 @@ public:
 		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferViewWorld;
 		bufferViewWorld.BufferLocation = _model->worldConstBuffer->GetGPUVirtualAddress();
 		bufferViewWorld.SizeInBytes = CalculateConstantBufferByteSize(_model->worldMatrices.size() * sizeof(GW::MATH::GMATRIXF));
-		_model->descHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(descHeap->GetCPUDescriptorHandleForHeapStart(), offset, desc_heap_size);
 
+		_model->descHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(descHeap->GetCPUDescriptorHandleForHeapStart(), offset, desc_heap_size);
 		_creator->CreateConstantBufferView(&bufferViewWorld, _model->descHandle);
 		offset++;
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// Material Const Buffer View
 	    /////////////////////////////////////////////////////////////////////////////////
-		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferView;
-		bufferView.BufferLocation = _model->materialConstBuffer->GetGPUVirtualAddress();
-		bufferView.SizeInBytes = CalculateConstantBufferByteSize(sizeof(H2B::MATERIAL) * _model->parser.materialCount);
+		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferViewMaterial;
+		bufferViewMaterial.BufferLocation = _model->materialConstBuffer->GetGPUVirtualAddress();
+		bufferViewMaterial.SizeInBytes = CalculateConstantBufferByteSize(sizeof(H2B::MATERIAL) * _model->parser.materialCount);
 
-		_creator->CreateConstantBufferView(&bufferViewWorld, CD3DX12_CPU_DESCRIPTOR_HANDLE(descHeap->GetCPUDescriptorHandleForHeapStart(), offset, desc_heap_size));
+		_creator->CreateConstantBufferView(&bufferViewMaterial, CD3DX12_CPU_DESCRIPTOR_HANDLE(descHeap->GetCPUDescriptorHandleForHeapStart(), offset, desc_heap_size));
 		offset++;
 		/////////////////////////////////////////////////////////////////////////////////
 

@@ -64,7 +64,6 @@ VS_OUT main(VS_IN input)
 	
     output.posW = mul(float4(input.pos, 1), meshMatrix.world);
     output.nrmW = mul(input.norm, meshMatrix.world);
-	
 	output.tex = input.tex;
 	
 

@@ -58,12 +58,20 @@ float4 main(PS_IN input) : SV_TARGET
     
     float3 viewDir = normalize(cameraAndLights.cameraPos.xyz - input.posW);
     float3 halfVector = normalize((-cameraAndLights.sunDirection.xyz) + viewDir);
-    float intensity = (max(pow(saturate(dot(input.nrmW, halfVector)), meshMaterial.material.Ns), 0)) * 0.75;
+    
+    float exponent = meshMaterial.material.Ns == 0 ? 96 : meshMaterial.material.Ns;
+    float power = pow(saturate(dot(input.nrmW, halfVector)), exponent);
+    float intensity = (max(power, 0)) * .75f;
+    
+    
+    //float intensity = (max(pow(saturate(dot(input.nrmW, halfVector)), meshMaterial.material.Ns), 0));
+    
+    
     float reflectedLight = cameraAndLights.sunColor.xyz * meshMaterial.material.Ks * intensity;
     
     
     float lightRatio = saturate(dot(-cameraAndLights.sunDirection.xyz, input.nrmW));
-    float3 result = ((lightRatio * cameraAndLights.sunColor.xyz) + cameraAndLights.sunAmbience.xyz) * (meshMaterial.material.Kd + reflectedLight);
+    float3 result = (saturate(lightRatio * cameraAndLights.sunColor.xyz) + cameraAndLights.sunAmbience.xyz) * meshMaterial.material.Kd + reflectedLight;
 
     return float4(result, 1);
 }
