@@ -23,7 +23,7 @@ public:
 	Microsoft::WRL::ComPtr<ID3D12Resource>		materialConstBuffer;
 	D3D12_CONSTANT_BUFFER_VIEW_DESC				materialConstBufferView;
 
-	D3D12_CPU_DESCRIPTOR_HANDLE descHandle; 
+	//D3D12_CPU_DESCRIPTOR_HANDLE descHandle; 
 
 
 

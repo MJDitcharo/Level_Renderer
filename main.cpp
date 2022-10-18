@@ -23,7 +23,7 @@ int main()
 	GWindow win;
 	GEventResponder msgs;
 	GDirectX12Surface d3d12;
-	if (+win.Create(0, 0, 800, 600, GWindowStyle::WINDOWEDBORDERED))
+	if (+win.Create(0, 0, 1600, 900, GWindowStyle::WINDOWEDBORDERED))
 	{
 		// TODO: Part 1a
 		float clr[] = { 4.659/255, 1.863/255, 24.535/255, 1 }; // start with a jade color

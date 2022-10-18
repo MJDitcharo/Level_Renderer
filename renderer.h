@@ -31,18 +31,29 @@ class Renderer
 
 
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> descHeap;
+	ID3D12Device* creator;
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature>	rootSignature;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState>	pipeline;
+	D3D12_VIEWPORT viewports_On[2];
+	D3D12_VIEWPORT viewports_Off;
 
 	// World, View, and Projection
 	GW::MATH::GMATRIXF world;
 	GW::MATH::GMATRIXF view;
-	GW::MATH::GMATRIXF camera;
+	GW::MATH::GMATRIXF worldView;
 	GW::MATH::GMATRIXF projection;
+	GW::MATH::GMATRIXF smallProjection;
 
+	std::vector<GW::MATH::GVECTORF> cameras;
+
+	std::string filePath;
+	std::string filePathTemp;
 	SCENE_DATA sceneData;
 	Level level;
+
+	bool cameraMode = false;
+
 
 public:
 	Renderer(GW::SYSTEM::GWindow _win, GW::GRAPHICS::GDirectX12Surface _d3d)
@@ -62,12 +73,26 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 		// Init View and Projection Matrix
 		/////////////////////////////////////////////////////////////////////////////////
-		mat.IdentityF(view);
-		GW::MATH::GVECTORF eye = { 0.0f, 3.0f, -9.0f, 1.0f };
-		GW::MATH::GVECTORF at =  { 0.0f, 0.0f,  0.0f, 1.0f };
-		GW::MATH::GVECTORF up =  { 0.0f, 1.0f, 0.0f, 1.0f };
+		filePath = "../Dungeon.txt";
+		filePathTemp = filePath;
+		level.levelParse(filePath.c_str());
+
+		GW::MATH::GVECTORF eye;
+
+		if (level.cameras.size() <= 0)
+		{
+			mat.IdentityF(view);
+			eye = { 0.0f, 3.0f, -9.0f, 1.0f };
+		}
+		else
+		{
+			eye = { level.cameras[0].row4.x, level.cameras[0].row4.y, level.cameras[0].row4.z, level.cameras[0].row4.w };
+		}
+		//GW::MATH::GVECTORF eye = { 0.0f, 3.0f, -9.0f, 1.0f };
+		GW::MATH::GVECTORF at = { 0.0f, 0.0f,  0.0f, 1.0f };
+		GW::MATH::GVECTORF up = { 0.0f, 1.0f, 0.0f, 1.0f };
 		mat.LookAtLHF(eye, at, up, view);
-		mat.InverseF(view, camera);;
+		mat.InverseF(view, worldView);
 
 		float fov = angleToRadian(65);
 		float nPlane = 0.1f;
@@ -76,13 +101,24 @@ public:
 		d3d.GetAspectRatio(aspectRatio);
 		mat.IdentityF(projection);
 		mat.ProjectionDirectXLHF(fov, aspectRatio, nPlane, fPlane, projection);
+
+		unsigned height, width;
+		float aspectRatioSmall;
+
+		win.GetHeight(height);
+		win.GetWidth(width);
+		aspectRatioSmall = (height) / (width / 2);
+
+		mat.IdentityF(smallProjection);
+		mat.ProjectionDirectXLHF(fov, aspectRatio, nPlane, fPlane, smallProjection);
+
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// Init Directional Light
 		/////////////////////////////////////////////////////////////////////////////////
 		GW::MATH::GVECTORF sunColor = { .75, .75, .5, 1 };
 		GW::MATH::GVECTORF ambientVec = { 0.10f, 0.10f, 0.20f, 1 };
-		GW::MATH::GVECTORF sunDirection = { -2, -2, 2, 0};
+		GW::MATH::GVECTORF sunDirection = { -2, -2, 2, 0 };
 		vecProxy.NormalizeF(sunDirection, sunDirection);
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
@@ -98,7 +134,8 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 		//  Initialize Level and Create Vertex, Index, and Constant Buffers
 		/////////////////////////////////////////////////////////////////////////////////
-		level.levelParse("../Dungeon.txt");
+		filePathTemp = filePath;
+		level.levelParse(filePath.c_str());
 
 		UINT offset = 0;
 		D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc{};
@@ -195,6 +232,43 @@ public:
 		psDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 		psDesc.SampleDesc.Count = 1;
 		creator->CreateGraphicsPipelineState(&psDesc, IID_PPV_ARGS(&pipeline));
+
+
+		unsigned screenWidth, screenHeight;
+		win.GetHeight(screenHeight);
+		win.GetWidth(screenWidth);
+
+
+		viewports_Off =
+		{
+			0,
+			0,
+			(float)screenWidth,
+			(float)screenHeight,
+			0,
+			1
+		};
+
+		viewports_On[0] =
+		{
+			0,
+			0,
+			(float)screenWidth / 2,
+			(float)screenHeight,
+			0,
+			1
+		};
+		viewports_On[1] =
+		{
+			((float)screenWidth / 2) + 1,
+			0,
+			(float)screenWidth / 2,
+			(float)screenHeight,
+			0,
+			1
+		};
+
+
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// free temporary handle
@@ -205,15 +279,49 @@ public:
 	{
 
 		// grab the context & render target
-		ID3D12GraphicsCommandList* cmd;
+		//ID3D12GraphicsCommandList* cmd;
 		D3D12_CPU_DESCRIPTOR_HANDLE rtv;
 		D3D12_CPU_DESCRIPTOR_HANDLE dsv;
+		ID3D12GraphicsCommandList* cmd;
 		d3d.GetCommandList((void**)&cmd);
 		d3d.GetCurrentRenderTargetView((void**)&rtv);
 		d3d.GetDepthStencilView((void**)&dsv);
 
+		/////////////////////////////////////////////////////////////////////////////////
+		// Level Hot Swapping
+		/////////////////////////////////////////////////////////////////////////////////
+		if (filePath != filePathTemp)
+		{
+			level.uniqueMeshes.clear();
+			level.cameras.clear();
+			level.lights.clear();
 
+
+			filePath = filePathTemp;
+			level.levelParse(filePath.c_str());
+
+			UINT offset = 0;
+			D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc{};
+			descHeapDesc.NumDescriptors = 1 + (2 * level.uniqueMeshes.size());
+			descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+			descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+			creator->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&descHeap));
+
+			CreateConstantBuffer(creator, nullptr, sizeof(sceneData), sceneData);
+			CreateConstantBufferSceneView(creator, offset);
+
+			for (auto it = level.uniqueMeshes.begin(); it != level.uniqueMeshes.end(); ++it)
+			{
+				CreateVertexBuffer(creator, &it->second);
+				CreateIndexBuffer(creator, &it->second);
+				CreateConstantBuffer(creator, &it->second);
+				CreateConstantBufferModelView(creator, &it->second, offset);
+			}
+		}
+		/////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////
 		// setup the pipeline
+		/////////////////////////////////////////////////////////////////////////////////
 		cmd->SetGraphicsRootSignature(rootSignature.Get());
 		cmd->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
 		cmd->SetPipelineState(pipeline.Get());
@@ -221,46 +329,66 @@ public:
 		// now we can draw
 		cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-		/////////////////////////////////////////////////////////////////////////////////////////
-		// Update View Matrix for camera Movement
-		/////////////////////////////////////////////////////////////////////////////////////////
+		if (!cameraMode)
 		{
-			sceneData.viewMatrix = view;
-			sceneData.cameraPos = { camera.row4.x, camera.row4.y, camera.row4.z, 1};
-			UINT8* transferMemoryLocation;
-			sceneBuffer->Map(0, &CD3DX12_RANGE(0, 0),
-				reinterpret_cast<void**>(&transferMemoryLocation));
-			memcpy(transferMemoryLocation, &sceneData, sizeof(SCENE_DATA));
-			sceneBuffer->Unmap(0, nullptr);
-		}
-		/////////////////////////////////////////////////////////////////////////////////////////
-		/////////////////////////////////////////////////////////////////////////////////////////
-		// A: Set Scene Buffer
-		/////////////////////////////////////////////////////////////////////////////////////////
-		cmd->SetGraphicsRootConstantBufferView(0, sceneBuffer->GetGPUVirtualAddress());
-		for (const auto& model : level.uniqueMeshes)
-		{
-			cmd->IASetVertexBuffers(0, 1, &model.second.vertexView);
-			cmd->IASetIndexBuffer(&model.second.indexView);
-			for (size_t i = 0; i < model.second.worldMatrices.size(); i++)
+			cmd->RSSetViewports(1, &viewports_Off);
+
+			/////////////////////////////////////////////////////////////////////////////////////////
+			// Update View Matrix for camera Movement
+			/////////////////////////////////////////////////////////////////////////////////////////
 			{
-				/////////////////////////////////////////////////////////////////////////////////
-				// B: Set World Matrix Buffer for each instance of model
-				/////////////////////////////////////////////////////////////////////////////////
-				cmd->SetGraphicsRootConstantBufferView(1, model.second.worldConstBuffer->GetGPUVirtualAddress() + (i * sizeof(GW::MATH::GMATRIXF)));
-				for (const auto& submesh : model.second.parser.meshes)
-				{
-					/////////////////////////////////////////////////////////////////////////////
-					// C: Set Material Buffer for each submesh in the model
-					/////////////////////////////////////////////////////////////////////////////
-					UINT material_index = submesh.materialIndex;
-					cmd->SetGraphicsRootConstantBufferView(2, model.second.materialConstBuffer->GetGPUVirtualAddress() + (material_index * sizeof(H2B::MATERIAL)));
-					cmd->DrawIndexedInstanced(submesh.drawInfo.indexCount, 1, submesh.drawInfo.indexOffset, 0, 0);
-				}
+				sceneData.viewMatrix = view;
+				sceneData.cameraPos = { worldView.row4.x, worldView.row4.y, worldView.row4.z, 1 };
+				sceneData.projectionMatrix = projection;
+				UINT8* transferMemoryLocation;
+				sceneBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+					reinterpret_cast<void**>(&transferMemoryLocation));
+				memcpy(transferMemoryLocation, &sceneData, sizeof(SCENE_DATA));
+				sceneBuffer->Unmap(0, nullptr);
+				DrawShit(cmd, level);
 			}
+			/////////////////////////////////////////////////////////////////////////////////////////
+			/////////////////////////////////////////////////////////////////////////////////////////
 		}
-		/////////////////////////////////////////////////////////////////////////////////////////
-		/////////////////////////////////////////////////////////////////////////////////////////
+		if (cameraMode)
+		{
+
+			cmd->RSSetViewports(2, &viewports_On[0]);
+			/////////////////////////////////////////////////////////////////////////////////////////
+			// Update View Matrix for camera Movement
+			/////////////////////////////////////////////////////////////////////////////////////////
+			{
+				sceneData.viewMatrix = view;
+				sceneData.cameraPos = { worldView.row4.x, worldView.row4.y, worldView.row4.z, 1 };
+				sceneData.projectionMatrix = projection;
+				UINT8* transferMemoryLocation;
+				sceneBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+					reinterpret_cast<void**>(&transferMemoryLocation));
+				memcpy(transferMemoryLocation, &sceneData, sizeof(SCENE_DATA));
+				sceneBuffer->Unmap(0, nullptr);
+				DrawShit(cmd, level);
+			}
+			/////////////////////////////////////////////////////////////////////////////////////////
+			/////////////////////////////////////////////////////////////////////////////////////////
+
+			cmd->RSSetViewports(2, &viewports_On[1]);
+
+			/////////////////////////////////////////////////////////////////////////////////////////
+			// Update View Matrix for camera Movement
+			/////////////////////////////////////////////////////////////////////////////////////////
+			{
+				sceneData.projectionMatrix = smallProjection;
+				UINT8* transferMemoryLocation;
+				sceneBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+					reinterpret_cast<void**>(&transferMemoryLocation));
+				memcpy(transferMemoryLocation, &sceneData, sizeof(SCENE_DATA));
+				sceneBuffer->Unmap(0, nullptr);
+				DrawShit(cmd, level);
+			}
+
+
+		}
+
 
 		// release temp handles
 		cmd->Release();
@@ -427,18 +555,17 @@ public:
 
 		/////////////////////////////////////////////////////////////////////////////////
 		// World Matrix Const Buffer View
-	    /////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////
 		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferViewWorld;
 		bufferViewWorld.BufferLocation = _model->worldConstBuffer->GetGPUVirtualAddress();
 		bufferViewWorld.SizeInBytes = CalculateConstantBufferByteSize(_model->worldMatrices.size() * sizeof(GW::MATH::GMATRIXF));
 
-		_model->descHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(descHeap->GetCPUDescriptorHandleForHeapStart(), offset, desc_heap_size);
-		_creator->CreateConstantBufferView(&bufferViewWorld, _model->descHandle);
+		_creator->CreateConstantBufferView(&bufferViewWorld, CD3DX12_CPU_DESCRIPTOR_HANDLE(descHeap->GetCPUDescriptorHandleForHeapStart(), offset, desc_heap_size));
 		offset++;
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// Material Const Buffer View
-	    /////////////////////////////////////////////////////////////////////////////////
+		/////////////////////////////////////////////////////////////////////////////////
 		D3D12_CONSTANT_BUFFER_VIEW_DESC bufferViewMaterial;
 		bufferViewMaterial.BufferLocation = _model->materialConstBuffer->GetGPUVirtualAddress();
 		bufferViewMaterial.SizeInBytes = CalculateConstantBufferByteSize(sizeof(H2B::MATERIAL) * _model->parser.materialCount);
@@ -472,17 +599,33 @@ public:
 
 #pragma region States
 
+		float NUMBER_F1_KEY_STATE;
+		gInput.GetState(G_KEY_F1, NUMBER_F1_KEY_STATE);
+		if (NUMBER_F1_KEY_STATE)
+			filePathTemp = OpenFileDialogue();
+
+		float NUMBER_ONE_KEY_STATE;
+		gInput.GetState(G_KEY_1, NUMBER_ONE_KEY_STATE);
+		if (NUMBER_ONE_KEY_STATE && !cameraMode)
+			cameraMode = true;
+
+		float NUMBER_TWO_KEY_STATE;
+		gInput.GetState(G_KEY_2, NUMBER_TWO_KEY_STATE);
+		if (NUMBER_TWO_KEY_STATE && cameraMode)
+			cameraMode = false;
+
+
 		float SPACE_KEY_STATE;
 		gInput.GetState(G_KEY_SPACE, SPACE_KEY_STATE);
 
 
 		float LSHIFT_KEY_STATE;
 		gInput.GetState(G_KEY_LEFTSHIFT, LSHIFT_KEY_STATE);
-		
+
 
 		float W_KEY_STATE;
 		gInput.GetState(G_KEY_W, W_KEY_STATE);
-	
+
 
 		float S_KEY_STATE;
 		gInput.GetState(G_KEY_S, S_KEY_STATE);
@@ -540,16 +683,42 @@ public:
 		Total_X_Change = D_KEY_STATE - A_KEY_STATE + LEFT_STICK_X_AXIS_STATE;
 		GW::MATH::GVECTORF vecXYZ = { Total_X_Change * PerFrameSpeed, Total_Y_Change * Camera_Speed * duration.count(), Total_Z_Change * PerFrameSpeed, 1 };
 
-		mat.RotateXLocalF(camera, Total_Pitch, camera);
-		mat.TranslateLocalF(camera, vecXYZ, camera);
-		mat.RotateYGlobalF(camera, Total_Yaw, camera);
+		mat.RotateXLocalF(worldView, Total_Pitch, worldView);
+		mat.TranslateLocalF(worldView, vecXYZ, worldView);
+		mat.RotateYGlobalF(worldView, Total_Yaw, worldView);
 
 
-		mat.InverseF(camera, view);
+		mat.InverseF(worldView, view);
 
 		end = std::chrono::high_resolution_clock::now();
 	}
 
+
+	void DrawShit(ID3D12GraphicsCommandList* cmd, Level level)
+	{
+		cmd->SetGraphicsRootConstantBufferView(0, sceneBuffer->GetGPUVirtualAddress());
+		for (const auto& model : level.uniqueMeshes)
+		{
+			cmd->IASetVertexBuffers(0, 1, &model.second.vertexView);
+			cmd->IASetIndexBuffer(&model.second.indexView);
+			for (size_t i = 0; i < model.second.worldMatrices.size(); i++)
+			{
+				/////////////////////////////////////////////////////////////////////////////////
+				// B: Set World Matrix Buffer for each instance of model
+				/////////////////////////////////////////////////////////////////////////////////
+				cmd->SetGraphicsRootConstantBufferView(1, model.second.worldConstBuffer->GetGPUVirtualAddress() + (i * sizeof(GW::MATH::GMATRIXF)));
+				for (const auto& submesh : model.second.parser.meshes)
+				{
+					/////////////////////////////////////////////////////////////////////////////
+					// C: Set Material Buffer for each submesh in the model
+					/////////////////////////////////////////////////////////////////////////////
+					UINT material_index = submesh.materialIndex;
+					cmd->SetGraphicsRootConstantBufferView(2, model.second.materialConstBuffer->GetGPUVirtualAddress() + (material_index * sizeof(H2B::MATERIAL)));
+					cmd->DrawIndexedInstanced(submesh.drawInfo.indexCount, 1, submesh.drawInfo.indexOffset, 0, 0);
+				}
+			}
+		}
+	}
 
 
 };
