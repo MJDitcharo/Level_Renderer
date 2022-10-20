@@ -35,12 +35,12 @@ class Renderer
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature>	rootSignature;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState>	pipeline;
-	D3D12_VIEWPORT viewports_On[2];
+	D3D12_VIEWPORT viewports_On[4];
 	D3D12_VIEWPORT viewports_Off;
 
 	// World, View, and Projection
 	GW::MATH::GMATRIXF world;
-	GW::MATH::GMATRIXF view;
+	GW::MATH::GMATRIXF view[4];
 	GW::MATH::GMATRIXF worldView;
 	GW::MATH::GMATRIXF projection;
 	GW::MATH::GMATRIXF smallProjection;
@@ -52,8 +52,10 @@ class Renderer
 	SCENE_DATA sceneData;
 	Level level;
 
-	bool cameraMode = false;
+	int currCamera = 1;
 
+	bool cameraMode = false;
+	bool drawOnce = false;
 
 public:
 	Renderer(GW::SYSTEM::GWindow _win, GW::GRAPHICS::GDirectX12Surface _d3d)
@@ -77,22 +79,7 @@ public:
 		filePathTemp = filePath;
 		level.levelParse(filePath.c_str());
 
-		GW::MATH::GVECTORF eye;
-
-		if (level.cameras.size() <= 0)
-		{
-			mat.IdentityF(view);
-			eye = { 0.0f, 3.0f, -9.0f, 1.0f };
-		}
-		else
-		{
-			eye = { level.cameras[0].row4.x, level.cameras[0].row4.y, level.cameras[0].row4.z, level.cameras[0].row4.w };
-		}
-		//GW::MATH::GVECTORF eye = { 0.0f, 3.0f, -9.0f, 1.0f };
-		GW::MATH::GVECTORF at = { 0.0f, 0.0f,  0.0f, 1.0f };
-		GW::MATH::GVECTORF up = { 0.0f, 1.0f, 0.0f, 1.0f };
-		mat.LookAtLHF(eye, at, up, view);
-		mat.InverseF(view, worldView);
+		SetCameras(level);
 
 		float fov = angleToRadian(65);
 		float nPlane = 0.1f;
@@ -107,10 +94,10 @@ public:
 
 		win.GetHeight(height);
 		win.GetWidth(width);
-		aspectRatioSmall = (height) / (width / 2);
+		aspectRatioSmall = ((float)width / 2) / (float)height;
 
 		mat.IdentityF(smallProjection);
-		mat.ProjectionDirectXLHF(fov, aspectRatio, nPlane, fPlane, smallProjection);
+		mat.ProjectionDirectXLHF(fov, aspectRatioSmall, nPlane, fPlane, smallProjection);
 
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
@@ -127,15 +114,19 @@ public:
 		sceneData.sunAmbience = ambientVec;
 		sceneData.sunDirection = sunDirection;
 		sceneData.sunColor = sunColor;
-		sceneData.cameraPos = eye;
-		sceneData.viewMatrix = view;
-		sceneData.projectionMatrix = projection;
+
+		for (size_t i = 0; i < 4; i++)
+		{
+			sceneData.cameraPos[i] = { level.cameras[i].row4.x, level.cameras[i].row4.y, level.cameras[i].row4.z, level.cameras[i].row4.w };
+			sceneData.viewMatrix[i] = view[i];
+		}
+
+		sceneData.projectionMatrix[0] = projection;
+		sceneData.projectionMatrix[1] = smallProjection;
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
-		//  Initialize Level and Create Vertex, Index, and Constant Buffers
+		// Create Vertex, Index, and Constant Buffers
 		/////////////////////////////////////////////////////////////////////////////////
-		filePathTemp = filePath;
-		level.levelParse(filePath.c_str());
 
 		UINT offset = 0;
 		D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc{};
@@ -199,10 +190,11 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 		// Create Root Parameters and Root Signature
 		/////////////////////////////////////////////////////////////////////////////////
-		CD3DX12_ROOT_PARAMETER rootParams[3];
+		CD3DX12_ROOT_PARAMETER rootParams[4];
 		rootParams[0].InitAsConstantBufferView(0);
 		rootParams[1].InitAsConstantBufferView(1);
 		rootParams[2].InitAsConstantBufferView(2);
+		rootParams[3].InitAsConstants(2, 3);
 
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
 		rootSignatureDesc.Init(ARRAYSIZE(rootParams), rootParams, 0, nullptr,
@@ -238,6 +230,7 @@ public:
 		win.GetHeight(screenHeight);
 		win.GetWidth(screenWidth);
 
+#pragma region ViewPorts
 
 		viewports_Off =
 		{
@@ -267,6 +260,26 @@ public:
 			0,
 			1
 		};
+		viewports_On[2] =
+		{
+			0,
+			((float)screenWidth / 2) + 1,
+			(float)screenWidth / 2,
+			(float)screenHeight / 2,
+			0,
+			1
+		};
+		viewports_On[3] =
+		{
+			((float)screenWidth / 2) + 1,
+			((float)screenWidth / 2) + 1,
+			(float)screenWidth / 2,
+			(float)screenHeight / 2,
+			0,
+			1
+		};
+
+#pragma endregion
 
 
 		/////////////////////////////////////////////////////////////////////////////////
@@ -286,7 +299,7 @@ public:
 		d3d.GetCommandList((void**)&cmd);
 		d3d.GetCurrentRenderTargetView((void**)&rtv);
 		d3d.GetDepthStencilView((void**)&dsv);
-
+		INDEXES indexes;
 		/////////////////////////////////////////////////////////////////////////////////
 		// Level Hot Swapping
 		/////////////////////////////////////////////////////////////////////////////////
@@ -337,54 +350,64 @@ public:
 			// Update View Matrix for camera Movement
 			/////////////////////////////////////////////////////////////////////////////////////////
 			{
-				sceneData.viewMatrix = view;
-				sceneData.cameraPos = { worldView.row4.x, worldView.row4.y, worldView.row4.z, 1 };
-				sceneData.projectionMatrix = projection;
+				sceneData.viewMatrix[0] = view[0];
+				sceneData.cameraPos[0] = { worldView.row4.x, worldView.row4.y, worldView.row4.z, 1 };
 				UINT8* transferMemoryLocation;
 				sceneBuffer->Map(0, &CD3DX12_RANGE(0, 0),
 					reinterpret_cast<void**>(&transferMemoryLocation));
 				memcpy(transferMemoryLocation, &sceneData, sizeof(SCENE_DATA));
 				sceneBuffer->Unmap(0, nullptr);
-				DrawShit(cmd, level);
 			}
 			/////////////////////////////////////////////////////////////////////////////////////////
 			/////////////////////////////////////////////////////////////////////////////////////////
+
+			indexes.view = 0;
+			indexes.proj = 0;
+			cmd->SetGraphicsRoot32BitConstants(3, 2, &indexes, 0);
+			DrawShit(cmd, level);
 		}
 		if (cameraMode)
 		{
 
+			/////////////////////////////////////////////////////////////////////////////////////////
+			// Update View Matrix for camera Movement
+			/////////////////////////////////////////////////////////////////////////////////////////
+			{
+				sceneData.viewMatrix[0] = view[0];
+				sceneData.cameraPos[0] = { worldView.row4.x, worldView.row4.y, worldView.row4.z, 1 };
+				UINT8* transferMemoryLocation;
+				sceneBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+					reinterpret_cast<void**>(&transferMemoryLocation));
+				memcpy(transferMemoryLocation, &sceneData, sizeof(SCENE_DATA));
+				sceneBuffer->Unmap(0, nullptr);
+			}
+			/////////////////////////////////////////////////////////////////////////////////////////
+			indexes.view = 0;
+			indexes.proj = 1;
 			cmd->RSSetViewports(2, &viewports_On[0]);
-			/////////////////////////////////////////////////////////////////////////////////////////
-			// Update View Matrix for camera Movement
-			/////////////////////////////////////////////////////////////////////////////////////////
-			{
-				sceneData.viewMatrix = view;
-				sceneData.cameraPos = { worldView.row4.x, worldView.row4.y, worldView.row4.z, 1 };
-				sceneData.projectionMatrix = projection;
-				UINT8* transferMemoryLocation;
-				sceneBuffer->Map(0, &CD3DX12_RANGE(0, 0),
-					reinterpret_cast<void**>(&transferMemoryLocation));
-				memcpy(transferMemoryLocation, &sceneData, sizeof(SCENE_DATA));
-				sceneBuffer->Unmap(0, nullptr);
-				DrawShit(cmd, level);
-			}
-			/////////////////////////////////////////////////////////////////////////////////////////
-			/////////////////////////////////////////////////////////////////////////////////////////
+			cmd->SetGraphicsRoot32BitConstants(3, 2, &indexes, 0);
+			DrawShit(cmd, level);
 
-			cmd->RSSetViewports(2, &viewports_On[1]);
 
-			/////////////////////////////////////////////////////////////////////////////////////////
-			// Update View Matrix for camera Movement
-			/////////////////////////////////////////////////////////////////////////////////////////
-			{
-				sceneData.projectionMatrix = smallProjection;
-				UINT8* transferMemoryLocation;
-				sceneBuffer->Map(0, &CD3DX12_RANGE(0, 0),
-					reinterpret_cast<void**>(&transferMemoryLocation));
-				memcpy(transferMemoryLocation, &sceneData, sizeof(SCENE_DATA));
-				sceneBuffer->Unmap(0, nullptr);
-				DrawShit(cmd, level);
-			}
+
+			indexes.view = currCamera;
+			indexes.proj = 1;
+			cmd->RSSetViewports(4, &viewports_On[1]);
+			cmd->SetGraphicsRoot32BitConstants(3, 2, &indexes, 0);
+			DrawShit(cmd, level);
+
+
+			/*indexes.view = 2;
+			indexes.proj = 1;
+			cmd->RSSetViewports(4, &viewports_On[2]);
+			cmd->SetGraphicsRoot32BitConstants(3, 2, &indexes, 0);
+			DrawShit(cmd, level);
+
+			indexes.view = 3;
+			indexes.proj = 1;
+			cmd->RSSetViewports(4, &viewports_On[3]);
+			cmd->SetGraphicsRoot32BitConstants(3, 2, &indexes, 0);
+			DrawShit(cmd, level);*/
 
 
 		}
@@ -472,6 +495,7 @@ public:
 	void CreateConstantBuffer(ID3D12Device* _creator, Model* _model, unsigned constBuffMemory, SCENE_DATA sceneData)
 	{
 
+		constBuffMemory = CalculateConstantBufferByteSize(constBuffMemory);
 
 		HRESULT hr = _creator->CreateCommittedResource( // using UPLOAD heap for simplicity
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // DEFAULT recommend  
@@ -586,6 +610,8 @@ public:
 	std::chrono::duration<float> duration;
 	/////////////////////////////////////////////////////////////////////////////////
 
+	bool holdCheck = false;
+
 	void UpdateCamera()
 	{
 		//Timer t;
@@ -614,6 +640,18 @@ public:
 		if (NUMBER_TWO_KEY_STATE && cameraMode)
 			cameraMode = false;
 
+		float NUMBER_THREE_KEY_STATE;
+		gInput.GetState(G_KEY_3, NUMBER_THREE_KEY_STATE);
+		if (NUMBER_THREE_KEY_STATE && !holdCheck)
+		{
+			currCamera++;
+			if (currCamera > 3)
+				currCamera = 0;
+
+			holdCheck = true;
+		}
+		if (!NUMBER_THREE_KEY_STATE && holdCheck)
+			holdCheck = false;
 
 		float SPACE_KEY_STATE;
 		gInput.GetState(G_KEY_SPACE, SPACE_KEY_STATE);
@@ -688,7 +726,7 @@ public:
 		mat.RotateYGlobalF(worldView, Total_Yaw, worldView);
 
 
-		mat.InverseF(worldView, view);
+		mat.InverseF(worldView, view[0]);
 
 		end = std::chrono::high_resolution_clock::now();
 	}
@@ -718,6 +756,34 @@ public:
 				}
 			}
 		}
+	}
+
+	void SetCameras(Level _level)
+	{
+
+		GW::MATH::GVECTORF eye;
+		for (size_t i = 0; i < 4; i++)
+		{
+			if (level.cameras.size() <= 0)
+			{
+				mat.IdentityF(view[0]);
+				mat.IdentityF(view[1]);
+				mat.IdentityF(view[2]);
+				mat.IdentityF(view[3]);
+				eye = { 0.0f, 3.0f, -9.0f, 1.0f };
+				break;
+			}
+			else
+			{
+				eye = { level.cameras[i].row4.x, level.cameras[i].row4.y, level.cameras[i].row4.z, level.cameras[i].row4.w };
+				GW::MATH::GVECTORF at = { 0.0f, 0.0f,  0.0f, 1.0f };
+				GW::MATH::GVECTORF up = { 0.0f, 1.0f, 0.0f, 1.0f };
+				mat.LookAtLHF(eye, at, up, view[i]);
+			}
+		}
+
+		mat.InverseF(view[0], worldView);
+
 	}
 
 

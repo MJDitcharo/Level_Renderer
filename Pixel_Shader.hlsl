@@ -7,6 +7,11 @@ struct PS_IN {
 };
 
 
+cbuffer INDEXES : register(b3)
+{
+    uint view;
+    uint proj;
+};
 
 struct OBJ_ATTRIBUTES
 {
@@ -31,10 +36,10 @@ struct OUTPUT_TO_RASTERIZER
 
 struct SCENE_DATA
 {
-    float4 sunDirection, sunColor, sunAmbience, cameraPos;
-    float4 pointLights[2];
-    float4x4 viewMatrix, projectionMatrix;
-    float4 padding[2];
+    float4 sunDirection, sunColor, sunAmbience;
+    float4 cameraPos[4];
+    float4x4 viewMatrix[4];
+    float4x4 projectionMatrix[2];
 };
 
 struct MESH_MATRIX
@@ -57,7 +62,7 @@ float4 main(PS_IN input) : SV_TARGET
 {
     input.nrmW = normalize(input.nrmW);
     
-    float3 viewDir = normalize(cameraAndLights.cameraPos.xyz - input.posW);
+    float3 viewDir = normalize(cameraAndLights.cameraPos[view].xyz - input.posW);
     float3 halfVector = normalize((-cameraAndLights.sunDirection.xyz) + viewDir);
     
     float exponent = meshMaterial.material.Ns == 0 ? 96 : meshMaterial.material.Ns;

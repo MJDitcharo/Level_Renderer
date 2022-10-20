@@ -13,6 +13,11 @@ struct VS_OUT {
 	float3 tex : TEXTCOORD;
 };
 
+cbuffer INDEXES : register(b3)
+{
+    uint view;
+    uint proj;
+};
 
 struct OBJ_ATTRIBUTES
 {
@@ -30,10 +35,10 @@ struct OBJ_ATTRIBUTES
 
 struct SCENE_DATA
 {
-	float4 sunDirection, sunColor, sunAmbience, cameraPos;
-	float4 pointLights[2];
-	float4x4 viewMatrix, projectionMatrix;
-	float4 padding[2];
+    float4 sunDirection, sunColor, sunAmbience;
+    float4 cameraPos[4];
+    float4x4 viewMatrix[4];
+    float4x4 projectionMatrix[2];
 };
 
 struct MESH_MATRIX
@@ -59,8 +64,8 @@ VS_OUT main(VS_IN input)
     output.posW = input.pos;
 	
     output.posH = mul(float4(output.posW, 1), meshMatrix.world);
-    output.posH = mul(output.posH, cameraAndLights.viewMatrix);
-    output.posH = mul(output.posH, cameraAndLights.projectionMatrix);
+    output.posH = mul(output.posH, cameraAndLights.viewMatrix[view]);
+    output.posH = mul(output.posH, cameraAndLights.projectionMatrix[proj]);
 	
     output.posW = mul(float4(input.pos, 1), meshMatrix.world).xyz;
     output.nrmW = mul(float4(input.norm, 0), meshMatrix.world).xyz;
