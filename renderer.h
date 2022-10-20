@@ -30,7 +30,6 @@ class Renderer
 	Microsoft::WRL::ComPtr<ID3D12Resource>		sceneBuffer;
 
 
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> descHeap;
 	ID3D12Device* creator;
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature>	rootSignature;
@@ -46,6 +45,7 @@ class Renderer
 	GW::MATH::GMATRIXF smallProjection;
 
 	std::vector<GW::MATH::GVECTORF> cameras;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> descHeap;
 
 	std::string filePath;
 	std::string filePathTemp;
@@ -66,7 +66,6 @@ public:
 		/////////////////////////////////////////////////////////////////////////////////
 		win = _win;
 		d3d = _d3d;
-		ID3D12Device* creator;
 		d3d.GetDevice((void**)&creator);
 		mat.Create();
 		gController.Create();
@@ -309,9 +308,17 @@ public:
 			level.cameras.clear();
 			level.lights.clear();
 
+			
 
 			filePath = filePathTemp;
 			level.levelParse(filePath.c_str());
+
+			/*for (size_t i = 0; i < 4; i++)
+			{
+				sceneData.cameraPos[i] = { level.cameras[i].row4.x, level.cameras[i].row4.y, level.cameras[i].row4.z, level.cameras[i].row4.w };
+				sceneData.viewMatrix[i] = view[i];
+			}*/
+
 
 			UINT offset = 0;
 			D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc{};

@@ -8,6 +8,8 @@ public:
 	std::vector<GW::MATH::GMATRIXF> cameras;
 	std::vector<GW::MATH::GMATRIXF> lights;
 
+
+
 	void levelParse(const char* fileName);
 
 
