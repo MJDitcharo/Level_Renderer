@@ -14,15 +14,25 @@ struct INDEXES
 {
 	UINT32 view;
 	UINT32 proj;
+	UINT32 pLightCount;
+
+};
+
+struct POINT_LIGHT
+{
+	GW::MATH::GVECTORF color;
+	GW::MATH::GVECTORF posAndRadius;
 };
 
 struct SCENE_DATA
 {
 	GW::MATH::GVECTORF sunDirection, sunColor, sunAmbience; // lighting info
+	POINT_LIGHT pointLights[16];
 	GW::MATH::GVECTORF cameraPos[4];
 	GW::MATH::GMATRIXF viewMatrix[4];
 	GW::MATH::GMATRIXF projectionMatrix[2]; // viewing info
 };
+
 
 
 std::string OpenFileDialogue()

@@ -17,6 +17,13 @@ cbuffer INDEXES : register(b3)
 {
     uint view;
     uint proj;
+    uint pLightCount;
+};
+
+struct POINT_LIGHT
+{
+    float4 color;
+    float4 posAndRadius;
 };
 
 struct OBJ_ATTRIBUTES
@@ -36,6 +43,7 @@ struct OBJ_ATTRIBUTES
 struct SCENE_DATA
 {
     float4 sunDirection, sunColor, sunAmbience;
+    POINT_LIGHT pointLights[16];
     float4 cameraPos[4];
     float4x4 viewMatrix[4];
     float4x4 projectionMatrix[2];

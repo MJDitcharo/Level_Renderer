@@ -106,6 +106,13 @@ public:
 		GW::MATH::GVECTORF ambientVec = { 0.10f, 0.10f, 0.20f, 1 };
 		GW::MATH::GVECTORF sunDirection = { -2, -2, 2, 0 };
 		vecProxy.NormalizeF(sunDirection, sunDirection);
+
+		for (size_t i = 0; i < level.lights.size(); i++)
+		{
+			sceneData.pointLights[i].color = { level.lights[i].row2.x, level.lights[i].row2.y, level.lights[i].row2.z, 10 };
+			sceneData.pointLights[i].posAndRadius = { level.lights[i].row4.x, level.lights[i].row4.y, level.lights[i].row4.z,level.lights[i].row4.w };
+		}
+
 		/////////////////////////////////////////////////////////////////////////////////
 		/////////////////////////////////////////////////////////////////////////////////
 		// Set SceneData members
@@ -193,7 +200,7 @@ public:
 		rootParams[0].InitAsConstantBufferView(0);
 		rootParams[1].InitAsConstantBufferView(1);
 		rootParams[2].InitAsConstantBufferView(2);
-		rootParams[3].InitAsConstants(2, 3);
+		rootParams[3].InitAsConstants(3, 3);
 
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
 		rootSignatureDesc.Init(ARRAYSIZE(rootParams), rootParams, 0, nullptr,
@@ -299,6 +306,8 @@ public:
 		d3d.GetCurrentRenderTargetView((void**)&rtv);
 		d3d.GetDepthStencilView((void**)&dsv);
 		INDEXES indexes;
+		indexes.pLightCount = level.lights.size();
+
 		/////////////////////////////////////////////////////////////////////////////////
 		// Level Hot Swapping
 		/////////////////////////////////////////////////////////////////////////////////
@@ -308,16 +317,30 @@ public:
 			level.cameras.clear();
 			level.lights.clear();
 
-			
+
 
 			filePath = filePathTemp;
 			level.levelParse(filePath.c_str());
 
-			/*for (size_t i = 0; i < 4; i++)
+			for (size_t i = 0; i < 4; i++)
 			{
 				sceneData.cameraPos[i] = { level.cameras[i].row4.x, level.cameras[i].row4.y, level.cameras[i].row4.z, level.cameras[i].row4.w };
 				sceneData.viewMatrix[i] = view[i];
-			}*/
+			}
+			for (size_t i = 0; i < level.lights.size(); i++)
+			{
+				sceneData.pointLights[i].color = { level.lights[i].row2.x, level.lights[i].row2.y, level.lights[i].row2.z, 10 };
+				sceneData.pointLights[i].posAndRadius = { level.lights[i].row4.x, level.lights[i].row4.y, level.lights[i].row4.z,level.lights[i].row4.w };
+			}
+
+
+			{
+				UINT8* transferMemoryLocation;
+				sceneBuffer->Map(0, &CD3DX12_RANGE(0, 0),
+					reinterpret_cast<void**>(&transferMemoryLocation));
+				memcpy(transferMemoryLocation, &sceneData, sizeof(SCENE_DATA));
+				sceneBuffer->Unmap(0, nullptr);
+			}
 
 
 			UINT offset = 0;
@@ -370,7 +393,7 @@ public:
 
 			indexes.view = 0;
 			indexes.proj = 0;
-			cmd->SetGraphicsRoot32BitConstants(3, 2, &indexes, 0);
+			cmd->SetGraphicsRoot32BitConstants(3, 3, &indexes, 0);
 			DrawShit(cmd, level);
 		}
 		if (cameraMode)
@@ -391,8 +414,8 @@ public:
 			/////////////////////////////////////////////////////////////////////////////////////////
 			indexes.view = 0;
 			indexes.proj = 1;
-			cmd->RSSetViewports(2, &viewports_On[0]);
-			cmd->SetGraphicsRoot32BitConstants(3, 2, &indexes, 0);
+			cmd->RSSetViewports(4, &viewports_On[0]);
+			cmd->SetGraphicsRoot32BitConstants(3, 3, &indexes, 0);
 			DrawShit(cmd, level);
 
 
@@ -400,7 +423,7 @@ public:
 			indexes.view = currCamera;
 			indexes.proj = 1;
 			cmd->RSSetViewports(4, &viewports_On[1]);
-			cmd->SetGraphicsRoot32BitConstants(3, 2, &indexes, 0);
+			cmd->SetGraphicsRoot32BitConstants(3, 3, &indexes, 0);
 			DrawShit(cmd, level);
 
 
@@ -737,7 +760,6 @@ public:
 
 		end = std::chrono::high_resolution_clock::now();
 	}
-
 
 	void DrawShit(ID3D12GraphicsCommandList* cmd, Level level)
 	{

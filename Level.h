@@ -40,7 +40,7 @@ void Level::levelParse(const char* fileName)
 	{
 		std::string str, h2b, strTemp;
 		std::getline(f, str, '\n');
-		if (std::strcmp(str.c_str(), "MESH") == 0 || std::strcmp(str.c_str(), "LIGHT") == 0 || std::strcmp(str.c_str(), "CAMERA") == 0)
+		if (std::strcmp(str.c_str(), "MESH") == 0 || std::strcmp(str.c_str(), "POINT") == 0 || std::strcmp(str.c_str(), "CAMERA") == 0)
 		{
 			// Get .h2b
 			std::getline(f, h2b, '\n');
@@ -121,7 +121,7 @@ void Level::levelParse(const char* fileName)
 				}
 			}
 
-			if (std::strcmp(str.c_str(), "LIGHT") == 0)
+			if (std::strcmp(str.c_str(), "POINT") == 0)
 			{
 				lights.push_back(createMatrix(values));
 			}
